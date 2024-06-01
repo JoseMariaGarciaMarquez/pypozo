@@ -21,7 +21,7 @@ class processdata:
         self.font_axis = {'family': 'monospace', 'weight': 'bold', 'size': 15}
     
     """"
-    Section to plot data
+    Section to plot data ----------------------------------------------------------------------------------------------------
     """
     def simpleplot(self, registro):
         """
@@ -46,7 +46,7 @@ class processdata:
         plt.show()
 
     """"
-    Section to process data
+    Section to process data ----------------------------------------------------------------------------------------------------
     """
 
     def larinov_vsh(self, plot=False):
@@ -114,3 +114,52 @@ class processdata:
             self.simpleplot('BRITT')
 
         return brittlness
+    
+
+    def savepozo(self, ruta, nombre_archivo):
+        """
+        Guarda el pozo en un archivo .las
+        
+        """
+
+        las = lasio.LASFile()
+
+        las.version = lasio.SectionItems([
+            lasio.HeaderItem(mnemonic='VERS', unit='', value='2.0', descr='Version of LAS file'),
+            lasio.HeaderItem(mnemonic='WRAP', unit='', value='NO', descr='Wrap mode')
+        ])
+
+
+        first_curve = next(iter(self.pozo.data.values()))
+        depths = first_curve.basis
+        start_depth = depths[-1]
+        stop_depth = max(depths)
+        step = depths[0] - depths[1]  
+
+
+        well_info = [
+            ('STRT', start_depth, 'M', 'START DEPTH'),
+            ('STOP', stop_depth, 'M', 'STOP DEPTH'),
+            ('STEP', step, 'M', 'STEP VALUE'),
+            ('NULL', -999.25, '', 'NULL VALUE'),
+            ('COMP', 'PyPozo', '', 'Company Name'),
+            ('WELL', '{}'.format(self.pozo.name), '', 'Well Name'),
+            #('FLD', '{}'.format(self.pozo.location.location), '', 'Field Name'),
+            #('LOC', '{}'.format(self.pozo.location.location), '', 'Location'),
+            ('PROV', 'Province', '', 'Province'),
+            ('SRVC', 'Service Company', '', 'Service Company'),
+            ('DATE', 'Date', '', 'Log Date'),
+        ]
+        las.well = lasio.SectionItems([lasio.HeaderItem(mnemonic=mnemonic, unit=unit, value=value, descr=descr) for mnemonic, value, unit, descr in well_info])
+
+
+        for curve_name, curve in self.pozo.data.items():
+            curve_data = curve.values
+            unit = curve.unit if hasattr(curve, 'unit') else ''
+            descr = curve.description if hasattr(curve, 'description') else ''
+            las.curves.append(lasio.CurveItem(mnemonic=curve_name, unit=unit, data=curve_data, descr=descr))
+
+        output_path = f"{ruta}/{nombre_archivo}.las"
+
+        las.write(output_path, version=1.2)
+        print(f"Archivo LAS guardado en: {output_path}")
