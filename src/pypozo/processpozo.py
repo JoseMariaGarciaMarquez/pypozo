@@ -14,6 +14,7 @@ from welly import Project
 class processdata:
     def __init__(self, lasfile):
         self.pozo = Well.from_las(lasfile)
+        self.nombre = self.pozo.name
         self.figsize = (5, 15)
         self.dpi = 110
         self.font_title = {'family': 'monospace', 'weight': 'bold', 'size': 20}
