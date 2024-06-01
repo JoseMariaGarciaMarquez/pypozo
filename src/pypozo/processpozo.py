@@ -88,7 +88,7 @@ class processdata:
         
         phi = self.pozo.data['PHIE']
         rt = self.pozo.data['M1R6']
-        SW = (a/(phi**m*rt**n))
+        SW = (a/(phi.values**m*rt.values**n))
         self.pozo.data['SW_ARCHIE'] = SW
 
         if plot:

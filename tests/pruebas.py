@@ -7,5 +7,6 @@ pozo = processdata(ruta)
 pozo.simpleplot('GR')
 larinov = pozo.larinov_vsh(plot = True)
 brittlness = pozo.brittlness(plot = True)
-pozo.savepozo(ruta2, 'PALOBLANCO791_REPROCESADO.las')
+#archie = pozo.sw_archie(plot = True)
+pozo.savepozo(ruta2, 'PALOBLANCO791_REPROCESADO')
 
