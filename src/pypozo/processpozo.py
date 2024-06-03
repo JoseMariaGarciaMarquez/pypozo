@@ -9,42 +9,14 @@ import matplotlib.pyplot as plt
 from welly import Well
 from welly import Curve
 from welly import Project
+from pypozo.visualpozo import simpleplot
 
 
 class processdata:
     def __init__(self, lasfile):
         self.pozo = Well.from_las(lasfile)
         self.nombre = self.pozo.name
-        self.figsize = (5, 15)
-        self.dpi = 110
-        self.font_title = {'family': 'monospace', 'weight': 'bold', 'size': 20}
-        self.font_axis = {'family': 'monospace', 'weight': 'bold', 'size': 15}
-    
-    """"
-    Section to plot data ----------------------------------------------------------------------------------------------------
-    """
-    def simpleplot(self, registro):
-        """
-        This function plots a single curve from the well data.
-        Use the curve mnemonic to plot it.
-        """
-        if isinstance(registro, str):
-            registro = self.pozo.data[registro]
             
-
-        profundidad = np.arange( registro.start, registro.stop, registro.step)
-        fig, ax = plt.subplots(figsize = self.figsize, dpi = self.dpi)
-        ax.plot(registro.values, profundidad)
-        ax.set_xlabel('{}[{}]'.format(registro.mnemonic, registro.units), fontdict=self.font_axis)
-        ax.set_ylabel('Depth [m]', fontdict=self.font_axis)
-        ax.set_title('{}'.format(registro.mnemonic), fontdict=self.font_title)
-        ax.grid()
-        ax.invert_yaxis()
-        plt.suptitle('---------------------------------------------------------------------------------------------------------------------------------------\n'
-             '|{}|\n'
-             '---------------------------------------------------------------------------------------------------------------------------------------\n\n'.format(self.nombre))
-        plt.show()
-
     """"
     Section to process data ----------------------------------------------------------------------------------------------------
     """
@@ -72,7 +44,7 @@ class processdata:
 
         
         if plot:
-            self.simpleplot('VSH-LAR')
+            simpleplot(self.pozo,'VSH-LAR')
 
         return vsh
     
@@ -92,7 +64,7 @@ class processdata:
         self.pozo.data['SW_ARCHIE'] = SW
 
         if plot:
-            self.simpleplot('SW_ARCHIE')
+            self.simpleplot(self.pozo,'SW_ARCHIE')
 
         return SW
     
@@ -111,7 +83,7 @@ class processdata:
         self.pozo.data['BRITT'] = Curve(data=brittlness, index=dtc.index, mnemonic='BRITT', units='V/V')
 
         if plot:
-            self.simpleplot('BRITT')
+            simpleplot(self.pozo,'BRITT')
 
         return brittlness
     
