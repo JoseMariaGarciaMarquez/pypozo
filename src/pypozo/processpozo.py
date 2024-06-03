@@ -13,8 +13,8 @@ from pypozo.visualpozo import simpleplot
 
 
 class processdata:
-    def __init__(self, lasfile):
-        self.pozo = Well.from_las(lasfile)
+    def __init__(self, pozo):
+        self.pozo = pozo
         self.nombre = self.pozo.name
             
     """"
