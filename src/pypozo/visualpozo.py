@@ -31,26 +31,38 @@ def simpleplot(pozo, registro):
                  '---------------------------------------------------------------------------------------------------------------------------------------\n\n'.format(nombre))
         plt.show()
 
+
 def poliplot(pozo, registros):
-        nombre = pozo.name
-        """
-        This function plots a set of curves from the well data.
-        Use the curve mnemonics to plot them.
-        """
-        fig, ax = plt.subplots(1,len(registros), figsize = (len(registros)*6, 8), dpi = dpi, sharey = True)
-        for i in range(len(registros)):
-            registro = pozo.data[registros[i]]
-            profundidad = np.arange( registro.start, registro.stop, registro.step)
-            ax[i].plot(registro.values, profundidad)
-            ax[i].set_xlabel('{}[{}]'.format(registro.mnemonic, registro.units), fontdict=font_axis)
-            ax[i].set_title('{}'.format(registro.mnemonic), fontdict=font_title)
-            ax[i].grid()
-            ax[i].invert_yaxis()
-        ax[0].set_ylabel('Depth [m]', fontdict=font_axis)
-        plt.suptitle('---------------------------------------------------------------------------------------------------------------------------------------\n'
+    """"
+    This function plots multiple curves from the well data.
+    Use the curve mnemonics to plot them.
+    """
+
+    nombre = pozo.name
+    ancho = len(registros)*6
+    alto = len(registros)*3
+
+    fig, axs = plt.subplots(1, len(registros), figsize = (ancho, alto), dpi = dpi, sharey = True)
+    axs[0].set_ylabel('Depth [m]', fontdict=font_axis)
+
+    for i, registro in enumerate(registros):
+        if isinstance(registro, str):
+            registro = pozo.data[registro]
+        profundidad = np.arange(registro.start, registro.stop, registro.step)
+        
+        axs[i].plot(registro.values, profundidad, label=registro.mnemonic)
+
+        axs[i].set_xlabel('{}[{}]'.format(registro.mnemonic, registro.units), fontdict=font_axis)
+        axs[i].set_title('{}'.format(registro.mnemonic), fontdict=font_title)
+        axs[i].grid()
+        axs[i].legend()
+        
+    axs[0].invert_yaxis()
+    plt.suptitle('---------------------------------------------------------------------------------------------------------------------------------------\n'
                  '|{}|\n'
                  '---------------------------------------------------------------------------------------------------------------------------------------\n\n'.format(nombre))
-        plt.show()
+
+    plt.show()
 
 def completeplot(pozo):
         nombre = pozo.name

@@ -8,11 +8,15 @@ How to use visualpozo:
 """
 
 from welly import Well
-from pypozo.visualpozo import simpleplot
+from pypozo import visualpozo
 
 ruta = "data/PALO BLANCO 791_PROCESADO.las"
 
 pozo = Well.from_las(ruta)
 
-simpleplot(pozo, 'GR')
+visualpozo.simpleplot(pozo, 'GR')
+visualpozo.completeplot(pozo)
 
+registros = ['GR', 'CAL', 'SP', 'SW', 'VPVS']
+registros2 = ['GR', 'CAL', 'SP', 'DPHI', 'PHIE', 'SW', 'VPVS', 'POISDIN', 'FRAC_NAT', 'FRAC_IND', 'DTC', 'DTS', 'SPHI', 'ZDEN', 'BRITT']
+visualpozo.poliplot(pozo, registros)

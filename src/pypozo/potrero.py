@@ -105,19 +105,14 @@ class pozodata:
 
         for i, registro in enumerate(registros):
             for reg in registro:
-                if self.tipo == 'single':
-                    reg = self.pozo.data[reg]
-                    profundidad = np.arange(reg.start, reg.stop, reg.step)
-                if self.tipo == 'multi':
-                    reg = self.unify_curves(reg)
-                    profundidad = np.arange(reg.start, reg.stop + reg.step, reg.step)
+                reg = self.pozo.data[reg]
+                profundidad = np.arange(reg.start, reg.stop, reg.step)
                 
                 axs[i].plot(reg.values, profundidad, label=reg.mnemonic)
 
                 axs[i].set_xlabel('{}[{}]'.format(reg.mnemonic, reg.units), fontdict=self.font_axis)
                 axs[i].set_title('{}'.format(reg.mnemonic), fontdict=self.font_title)
                 axs[i].grid()
-                #axs[i].invert_yaxis()
                 axs[i].legend()
         axs[0].invert_yaxis()
         plt.suptitle('---------------------------------------------------------------------------------------------------------------------------------------\n'
