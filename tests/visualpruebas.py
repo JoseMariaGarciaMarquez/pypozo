@@ -9,6 +9,7 @@ How to use visualpozo:
 
 from welly import Well
 from pypozo import visualpozo
+from pypozo import visualpozop
 
 ruta = "data/PALO BLANCO 791_PROCESADO.las"
 
@@ -20,3 +21,5 @@ visualpozo.completeplot(pozo)
 registros = ['GR', 'CAL', 'SP', 'SW', 'VPVS']
 registros2 = ['GR', 'CAL', 'SP', 'DPHI', 'PHIE', 'SW', 'VPVS', 'POISDIN', 'FRAC_NAT', 'FRAC_IND', 'DTC', 'DTS', 'SPHI', 'ZDEN', 'BRITT']
 visualpozo.poliplot(pozo, registros)
+
+visualpozop.simpleplotly(pozo, 'GR')

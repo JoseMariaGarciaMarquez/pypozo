@@ -26,6 +26,8 @@ def simpleplot(pozo, registro):
         ax.set_title('{}'.format(registro.mnemonic), fontdict=font_title)
         ax.grid()
         ax.invert_yaxis()
+        if registro.units == "OHMM":
+            ax.set_xscale('log')
         plt.suptitle('---------------------------------------------------------------------------------------------------------------------------------------\n'
                  '|{}|\n'
                  '---------------------------------------------------------------------------------------------------------------------------------------\n\n'.format(nombre))
@@ -56,6 +58,8 @@ def poliplot(pozo, registros):
         axs[i].set_title('{}'.format(registro.mnemonic), fontdict=font_title)
         axs[i].grid()
         axs[i].legend()
+        if registro.units == "OHMM":
+             axs[i].set_xscale('log')
         
     axs[0].invert_yaxis()
     plt.suptitle('---------------------------------------------------------------------------------------------------------------------------------------\n'

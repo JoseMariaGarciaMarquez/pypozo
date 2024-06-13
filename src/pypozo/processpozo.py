@@ -16,6 +16,8 @@ class processdata:
     def __init__(self, pozo):
         self.pozo = pozo
         self.nombre = self.pozo.name
+        self.listaregistros = list(self.pozo.data.keys())
+        print("{}\n{}".format(self.nombre, self.listaregistros))
             
     """"
     Section to process data ----------------------------------------------------------------------------------------------------
@@ -90,8 +92,14 @@ class processdata:
 
     def savepozo(self, ruta, nombre_archivo):
         """
-        Guarda el pozo en un archivo .las
-        
+        Save the well data to a LAS file.
+
+        Parameters
+        ----------
+        ruta : str
+            Path to save the LAS file.
+        nombre_archivo : str
+            Name of the LAS file.        
         """
 
         las = lasio.LASFile()
