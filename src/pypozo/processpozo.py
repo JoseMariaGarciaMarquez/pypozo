@@ -25,10 +25,10 @@ class processdata:
 
     def larinov_vsh(self, plot=False):
         """
-        Calcula el volumen de lutitas a partir de la ecuación de Larionov.
-        Se calcula a partir de gr y se guarda en el pozo como VSH-LAR.
-        Se calcula grindex que es el índice de rayos gamma normalizado.
-        Y se usa la ecuación de Larionov para calcular el volumen de lutitas.
+        Calculate the volume of shale using the Larionov equation.
+        It is calculated based on GR and saved in the well as VSH-LAR.
+        Calculate grindex, which is the normalized gamma ray index.
+        And use the Larionov equation to calculate the volume of shale.
         vsh = 0.083*((2**(2*grindex) - 1))
         """
         
@@ -102,21 +102,32 @@ class processdata:
             Name of the LAS file.        
         """
 
+
+        # Create LAS file object
         las = lasio.LASFile()
 
+        # Define version section
         las.version = lasio.SectionItems([
             lasio.HeaderItem(mnemonic='VERS', unit='', value='2.0', descr='Version of LAS file'),
             lasio.HeaderItem(mnemonic='WRAP', unit='', value='NO', descr='Wrap mode')
         ])
 
-
+        # Obtain depth information
         first_curve = next(iter(self.pozo.data.values()))
         depths = first_curve.basis
-        start_depth = depths[-1]
-        stop_depth = max(depths)
-        step = depths[0] - depths[1]  
+        
+        # Check for NaN values in depths
+        if any(map(lambda x: x is None or x != x, depths)):
+            raise ValueError("Depths contain NaN values")
 
+        # Ensure depths are sorted
+        depths = sorted(depths)
 
+        start_depth = depths[0]
+        stop_depth = depths[-1]
+        step = abs(depths[1] - depths[0])
+
+        # Define well information
         well_info = [
             ('STRT', start_depth, 'M', 'START DEPTH'),
             ('STOP', stop_depth, 'M', 'STOP DEPTH'),
@@ -124,22 +135,28 @@ class processdata:
             ('NULL', -999.25, '', 'NULL VALUE'),
             ('COMP', 'PyPozo', '', 'Company Name'),
             ('WELL', '{}'.format(self.pozo.name), '', 'Well Name'),
-            #('FLD', '{}'.format(self.pozo.location.location), '', 'Field Name'),
-            #('LOC', '{}'.format(self.pozo.location.location), '', 'Location'),
             ('PROV', 'Province', '', 'Province'),
             ('SRVC', 'Service Company', '', 'Service Company'),
             ('DATE', 'Date', '', 'Log Date'),
         ]
         las.well = lasio.SectionItems([lasio.HeaderItem(mnemonic=mnemonic, unit=unit, value=value, descr=descr) for mnemonic, value, unit, descr in well_info])
 
+        # Add depth curve
+        las.curves.append(lasio.CurveItem(mnemonic='DEPT', unit='M', data=depths, descr='Depth'))
 
+        # Add other curves to LAS file
         for curve_name, curve in self.pozo.data.items():
+            if curve_name == 'DEPT':
+                continue  # Skip the depth curve as it's already added
             curve_data = curve.values
-            unit = curve.unit if hasattr(curve, 'unit') else ''
-            descr = curve.description if hasattr(curve, 'description') else ''
+            unit = getattr(curve, 'unit', '')
+            descr = getattr(curve, 'description', '')
             las.curves.append(lasio.CurveItem(mnemonic=curve_name, unit=unit, data=curve_data, descr=descr))
 
+        # Define output path and save LAS file
         output_path = f"{ruta}/{nombre_archivo}.las"
-
-        las.write(output_path, version=1.2)
+        las.write(output_path, version=2.0)
         print(f"Archivo LAS guardado en: {output_path}")
+
+
+

@@ -5,6 +5,7 @@ from pypozo import visualpozo
 ruta = "data/PALO BLANCO 791_PROCESADO.las"
 ruta12 = "data/70449_abedul1_gn_1850_800_05mz79p.las"
 ruta2 = "data"
+ruta3 = "data/ABEDUL1_REPROCESADO.las"
 
 pozo = Well.from_las(ruta)
 
@@ -23,3 +24,7 @@ larinov2 = data2.larinov_vsh(plot = True)
 registros2 = ["GR", "NEUT", "VSH-LAR"]
 visualpozo.poliplot(abedul, registros2)
 data2.savepozo(ruta2, 'ABEDUL1_REPROCESADO')
+
+abedul2 = Well.from_las(ruta3)
+data3 = processdata(abedul2)
+visualpozo.completeplot(abedul2)

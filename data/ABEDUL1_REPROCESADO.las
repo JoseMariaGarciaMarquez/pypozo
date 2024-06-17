@@ -1,16 +1,16 @@
 ~Version ---------------------------------------------------
-VERS. 1.2 : CWLS LOG ASCII STANDARD - VERSION 1.2
+VERS. 2.0 : CWLS log ASCII Standard -VERSION 2.0
 WRAP.  NO : Wrap mode
 ~Well ------------------------------------------------------
 STRT.M       33.33330 : START DEPTH
 STOP.M       20.02690 : STOP DEPTH
 STEP.M        0.32410 : STEP VALUE
 NULL.         -999.25 : NULL VALUE
-COMP.    Company Name : PyPozo
-WELL.       Well Name : ABEDUL-1
+COMP.          PyPozo : Company Name
+WELL.        ABEDUL-1 : Well Name
 PROV.        Province : Province
 SRVC. Service Company : Service Company
-DATE.        Log Date : Date
+DATE.            Date : Log Date
 ~Curve Information -----------------------------------------
 GR     .M  : 1       Gamma Ray
 NEUT   .   : 2       Neutron

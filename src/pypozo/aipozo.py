@@ -11,13 +11,22 @@ import scipy.signal as signal
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 
 
 def fluidefficiency(Gc):
     fef = Gc/(2+Gc)
-    returns
+    return fef
 
 def Gfunction():
+    return None
+
+def realldeepnetwork(n_inputs):
+    model = tf.keras.models.Sequential()
+    model.add(tf.keras.layers.Dense(64, activation='relu', input_shape=(n_inputs,)))
+    model.add(tf.keras.layers.Dense(64, activation='relu'))
+    model.add(tf.keras.layers.Dense(1, activation='linear'))
+    return model    
     
 
 """"
@@ -33,6 +42,8 @@ def aifracking():
         - DENSITY
         - NEUT
         - SONIC
+    Optional:
+        - BRITTLNESS 
     - General information:
     - Frac Fliud propierties:
         - Viscosity
