@@ -112,26 +112,18 @@ class processdata:
             lasio.HeaderItem(mnemonic='WRAP', unit='', value='NO', descr='Wrap mode')
         ])
 
-        # Obtain depth information
-        first_curve = next(iter(self.pozo.data.values()))
-        depths = first_curve.basis
+        header = self.pozo.header
+        start_depth = header.loc[header['mnemonic'] == 'STRT', 'value'].values[0]
+        stop_depth = header.loc[header['mnemonic'] == 'STOP', 'value'].values[0]
+        step_value = header.loc[header['mnemonic'] == 'STEP', 'value'].values[0]
         
-        # Check for NaN values in depths
-        if any(map(lambda x: x is None or x != x, depths)):
-            raise ValueError("Depths contain NaN values")
-
-        # Ensure depths are sorted
-        depths = sorted(depths)
-
-        start_depth = depths[0]
-        stop_depth = depths[-1]
-        step = abs(depths[1] - depths[0])
+        depths = np.arange(start_depth, stop_depth, step_value)
 
         # Define well information
         well_info = [
             ('STRT', start_depth, 'M', 'START DEPTH'),
             ('STOP', stop_depth, 'M', 'STOP DEPTH'),
-            ('STEP', step, 'M', 'STEP VALUE'),
+            ('STEP', step_value, 'M', 'STEP VALUE'),
             ('NULL', -999.25, '', 'NULL VALUE'),
             ('COMP', 'PyPozo', '', 'Company Name'),
             ('WELL', '{}'.format(self.pozo.name), '', 'Well Name'),

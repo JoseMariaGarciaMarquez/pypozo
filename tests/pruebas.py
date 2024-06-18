@@ -15,6 +15,7 @@ larinov = data.larinov_vsh(plot = True)
 brittlness = data.brittlness(plot = True)
 registros = ["GR", "BRITT", "ZDEN", "CNCF", "DTC", "M1R6"]
 visualpozo.poliplot(pozo, registros)
+data.savepozo(ruta2, 'PALOBLANCO791_REPROCESADO')
 
 
 abedul = Well.from_las(ruta12)
