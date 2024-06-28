@@ -88,6 +88,25 @@ class processdata:
             simpleplot(self.pozo,'BRITT')
 
         return brittlness
+
+    def correlation(self, curve1, curve2, plot=False):
+        """
+        This function calculates the correlation between two curves.
+        It uses the Pearson correlation coefficient to calculate the correlation.
+        """
+        if curve1 not in self.pozo.data or curve2 not in self.pozo.data:
+            raise ValueError("Both curves must be present in the well data.")
+
+        data1 = self.pozo.data[curve1].values
+        data2 = self.pozo.data[curve2].values
+        correlation = stats.pearsonr(data1, data2)[0]
+
+        if plot:
+            sns.scatterplot(data1, data2)
+            plt.title(f"Correlation between {curve1} and {curve2}: {correlation}")
+            plt.show()
+
+        return correlation
     
 
     def savepozo(self, ruta, nombre_archivo):
@@ -101,7 +120,6 @@ class processdata:
         nombre_archivo : str
             Name of the LAS file.        
         """
-
 
         # Create LAS file object
         las = lasio.LASFile()
@@ -141,8 +159,8 @@ class processdata:
             if curve_name == 'DEPT':
                 continue  # Skip the depth curve as it's already added
             curve_data = curve.values
-            unit = getattr(curve, 'unit', '')
-            descr = getattr(curve, 'description', '')
+            unit = curve.units
+            descr = curve.mnemonic
             las.curves.append(lasio.CurveItem(mnemonic=curve_name, unit=unit, data=curve_data, descr=descr))
 
         # Define output path and save LAS file

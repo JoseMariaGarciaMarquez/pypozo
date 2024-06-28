@@ -12,48 +12,48 @@ PROV.        Province : Province
 SRVC. Service Company : Service Company
 DATE.            Date : Log Date
 ~Curve Information -----------------------------------------
-DEPT     .M  : Depth
-M1R6     .   : MedRes     1 Foot Vertical Resolution Matched Res. - DOI 60 inch
-M1R9     .   : XDeepRes   1 Foot Vertical Resolution Matched Res. - DOI 90 inch
-CNCF     .   : Neutron    Field Normalized Compensated Neutron Porosity
-GR       .   : GammaRay   Gamma Ray
-CAL      .   : Caliper    Caliper
-SP       .   : SP         Spontaneous Potential
-DPHI     .   : Phi
-VCL      .   : Vcl
-PHIE     .   : Phi
-SW       .   : Sw
-BVW      .   : BVW
-KTIXIER  .   : 
-TVD      .   : Depth
-TVDSS    .   : Depth
-PAYFLAG  .   : PayFlag
-VPVS     .   : Velocity   Compressional to shear velocity ratio
-POISDIN  .   : Poisson
-MPERMC   .   : MR Coates permeability from T2app
-MPOC01   .   : MR T2 spectrum bin porosity for T2app, Bin 1
-T2_CUT_33.   : 
-MPOC02   .   : MR T2 spectrum bin porosity for T2app, Bin 2
-MPOC03   .   : MR T2 spectrum bin porosity for T2app, Bin 3
-MPOC04   .   : MR T2 spectrum bin porosity for T2app, Bin 4
-MPOC05   .   : MR T2 spectrum bin porosity for T2app, Bin 5
-MPOC06   .   : MR T2 spectrum bin porosity for T2app, Bin 6
-MPOC07   .   : MR T2 spectrum bin porosity for T2app, Bin 7
-MPOC08   .   : MR T2 spectrum bin porosity for T2app, Bin 8
-MPOC09   .   : MR T2 spectrum bin porosity for T2app, Bin 9
-MPOC10   .   : MR T2 spectrum bin porosity for T2app, Bin 10
-MPOC11   .   : MR T2 spectrum bin porosity for T2app, Bin 11
-MPOC12   .   : MR T2 spectrum bin porosity for T2app, Bin 12
-MPOC13   .   : MR T2 spectrum bin porosity for T2app, Bin 13
-ECHADOS  .   : Deviation
-FRAC_NAT .   : Deviation
-FRAC_IND .   : Deviation
-DTC      .   : Sonic      Compressional wave slowness
-DTS      .   : ShearSonic Shear wave slowness
-SPHI     .   : Phi
-ZDEN     .   : Density    ZDL Bulk Density
-VSH-LAR  .   : None
-BRITT    .   : None
+DEPT     .M       : Depth
+M1R6     .OHMM    : M1R6
+M1R9     .OHMM    : M1R9
+CNCF     .dec     : CNCF
+GR       .GAPI    : GR
+CAL      .IN      : CAL
+SP       .MV      : SP
+DPHI     .dec     : DPHI
+VCL      .Dec     : VCL
+PHIE     .Dec     : PHIE
+SW       .Dec     : SW
+BVW      .Dec     : BVW
+KTIXIER  .mD      : KTIXIER
+TVD      .M       : TVD
+TVDSS    .M       : TVDSS
+PAYFLAG  .        : PAYFLAG
+VPVS     .ft/sec  : VPVS
+POISDIN  .        : POISDIN
+MPERMC   .MD      : MPERMC
+MPOC01   .p.u     : MPOC01
+T2_CUT_33.ms      : T2_CUT_33
+MPOC02   .p.u     : MPOC02
+MPOC03   .p.u     : MPOC03
+MPOC04   .p.u     : MPOC04
+MPOC05   .p.u     : MPOC05
+MPOC06   .p.u     : MPOC06
+MPOC07   .p.u     : MPOC07
+MPOC08   .p.u     : MPOC08
+MPOC09   .p.u     : MPOC09
+MPOC10   .p.u     : MPOC10
+MPOC11   .p.u     : MPOC11
+MPOC12   .p.u     : MPOC12
+MPOC13   .p.u     : MPOC13
+ECHADOS  .DEG     : ECHADOS
+FRAC_NAT .DEG     : FRAC_NAT
+FRAC_IND .DEG     : FRAC_IND
+DTC      .US/F    : DTC
+DTS      .US/F    : DTS
+SPHI     .dec     : SPHI
+ZDEN     .G/C3    : ZDEN
+VSH-LAR  .V/V     : VSH-LAR
+BRITT    .V/V     : BRITT
 ~Params ----------------------------------------------------
 ~Other -----------------------------------------------------
 ~ASCII -----------------------------------------------------

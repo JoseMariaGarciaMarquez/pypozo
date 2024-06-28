@@ -17,6 +17,7 @@ pozo = Well.from_las(ruta)
 
 visualpozo.simpleplot(pozo, 'GR')
 visualpozo.completeplot(pozo)
+visualpozo.scatterplot_2d(pozo, 'GR', 'ZDEN')
 
 registros = ['GR', 'CAL', 'SP', 'SW', 'VPVS']
 registros2 = ['GR', 'CAL', 'SP', 'DPHI', 'PHIE', 'SW', 'VPVS', 'POISDIN', 'FRAC_NAT', 'FRAC_IND', 'DTC', 'DTS', 'SPHI', 'ZDEN', 'BRITT']
