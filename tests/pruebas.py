@@ -4,9 +4,9 @@ from pypozo import visualpozo
 
 ruta = "data/PALO BLANCO 791_PROCESADO.las"
 ruta12 = "data/70449_abedul1_gn_1850_800_05mz79p.las"
-ruta2 = "data"
+ruta2 = "data/PALOBLANCO791_REPROCESADO.las"
 ruta3 = "data/ABEDUL1_REPROCESADO.las"
-
+"""
 pozo = Well.from_las(ruta)
 
 data = processdata(pozo)
@@ -29,3 +29,8 @@ data2.savepozo(ruta2, 'ABEDUL1_REPROCESADO')
 abedul2 = Well.from_las(ruta3)
 data3 = processdata(abedul2)
 visualpozo.completeplot(abedul2)
+"""
+
+palo2 = Well.from_las(ruta2)
+data3 = processdata(palo2)
+visualpozo.simpleplot(palo2, 'BRITT')

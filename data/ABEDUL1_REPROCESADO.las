@@ -12,10 +12,10 @@ PROV.        Province : Province
 SRVC. Service Company : Service Company
 DATE.            Date : Log Date
 ~Curve Information -----------------------------------------
-DEPT   .M     : Depth
-GR     .GAPI  : GR
-NEUT   .NAPI  : NEUT
-VSH-LAR.V/V   : VSH-LAR
+DEPT   .M  : Depth
+GR     .   : 1       Gamma Ray
+NEUT   .   : 2       Neutron
+VSH-LAR.   : None
 ~Params ----------------------------------------------------
 ~Other -----------------------------------------------------
 ~ASCII -----------------------------------------------------
