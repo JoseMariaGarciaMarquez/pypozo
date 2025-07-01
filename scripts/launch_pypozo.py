@@ -1,18 +1,38 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Lanzador de PyPozo con datos de ejemplo
-======================================
+PyPozo 2.0 - Script de Lanzamiento
+==================================
 
-Este script lanza la GUI y puede cargar automáticamente pozos de ejemplo.
+Script principal para lanzar la aplicación PyPozo.
+Maneja automáticamente la configuración del path y las dependencias.
+
+Uso:
+    python launch_pypozo.py
+
+Autor: José María García Márquez
+Fecha: Junio 2025
 """
 
 import sys
 import os
 from pathlib import Path
 
-# Agregar src al path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+def setup_environment():
+    """Configurar el entorno de ejecución."""
+    # Obtener directorio del proyecto
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent
+    
+    # Agregar src al path
+    src_path = project_root / "src"
+    if str(src_path) not in sys.path:
+        sys.path.insert(0, str(src_path))
+    
+    # Configurar variables de entorno para mejor compatibilidad
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+    
+    return project_root
 
 try:
     from PyQt5.QtWidgets import QApplication, QMessageBox

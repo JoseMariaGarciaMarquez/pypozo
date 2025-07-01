@@ -246,28 +246,27 @@ resultado = workflow.process_project(
 print(f"✅ Proyecto procesado: {resultado['project_summary']['total_wells']} pozos")
 ```
 
-## 📁 Nueva Estructura del Proyecto
+## 📁 Estructura del Proyecto
+
+PyPozo 2.0 sigue una estructura profesional y modular:
 
 ```
 pypozo/
 ├── src/pypozo/              # Código fuente principal
-│   ├── core/                # 🔧 Núcleo
-│   │   ├── well.py         # Clase Well moderna
-│   │   └── project.py      # Clase Project
-│   ├── processors/          # ⚙️ Procesadores
-│   │   ├── standardizer.py # Estandarización automática
-│   │   └── calculator.py   # Cálculos geofísicos
-│   ├── visualization/       # 📊 Visualización
-│   │   └── plotter.py      # Sistema de plots profesional
-│   ├── integration/         # 🌍 Integración
-│   │   └── gis.py          # Exportación GIS/SIG
-│   └── workflows/           # 🔄 Workflows
-│       └── standard.py     # Workflow estándar
-├── examples/               # Ejemplos de uso PyPozo 2.0
-├── notebooks/             # Jupyter notebooks actualizados
-├── tests/                # Tests para PyPozo 2.0
-└── data/                # Datos de ejemplo
+│   ├── core/               # Clases principales (WellManager, ProjectManager)
+│   ├── visualization/      # WellPlotter y herramientas de visualización
+│   ├── gui/               # Interfaz gráfica de usuario
+│   ├── utils/             # Utilidades y helpers
+│   └── analysis/          # Análisis petrofísico
+├── docs/                   # Documentación completa
+├── scripts/               # Scripts de lanzamiento
+├── tests/                 # Tests y pruebas
+├── examples/              # Ejemplos y demos
+├── data/                  # Datos de ejemplo
+└── output/                # Archivos de salida
 ```
+
+---
 
 ## 🔧 Dependencias Modernas
 

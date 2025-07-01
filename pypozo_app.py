@@ -531,7 +531,7 @@ class PyPozoApp(QMainWindow):
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler('pypozo_app.log'),
+                logging.FileHandler('pypozo_app.log', encoding='utf-8'),
                 logging.StreamHandler()
             ]
         )
