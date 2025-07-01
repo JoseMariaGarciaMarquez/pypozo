@@ -6,7 +6,9 @@
 
 ✅ **Interfaz Gráfica Profesional** - GUI moderna con PyQt5 y matplotlib integrado  
 ✅ **Análisis Multi-Curva Avanzado** - Visualización individual y combinada de registros  
-✅ **Detección Automática de Curvas Eléctricas** - Identificación inteligente por unidades (OHMM) y nombres  
+✅ **Fusión Automática de Pozos** - Combina automáticamente archivos LAS del mismo pozo  
+✅ **Manejo Inteligente de Traslapes** - Promedia automáticamente zonas superpuestas  
+✅ **Detección Automática de Curvas Eléctricas** - Identificación inteligente por unidades y nombres  
 ✅ **Escala Logarítmica Automática** - Aplicación automática para curvas de resistividad  
 ✅ **Visualización de Unidades** - Etiquetas automáticas con unidades en gráficos  
 ✅ **Comparación de Pozos** - Análisis comparativo de múltiples pozos  
@@ -28,6 +30,54 @@
 - **Unidades en Etiquetas**: Muestra automáticamente las unidades en ejes
 - **Estadísticas Integradas**: N, Min, Max, Media en cada gráfico
 - **Colores Profesionales**: Paleta optimizada para análisis técnico
+
+### 🔗 **Fusión Automática de Pozos**
+
+Esta es una de las funcionalidades más avanzadas de PyPozo 2.0, diseñada para manejar la situación común donde los registros de un pozo se toman por separado en diferentes archivos LAS.
+
+#### ¿Cómo Funciona?
+
+1. **Detección Automática**: Cuando carga archivos LAS, el sistema detecta automáticamente si tienen el mismo nombre de pozo
+2. **Fusión Inteligente**: Combina automáticamente los registros de múltiples archivos
+3. **Manejo de Traslapes**: En zonas donde se superponen los registros, calcula la media aritmética
+4. **Preservación de Metadatos**: Mantiene información de los archivos originales y fecha de fusión
+
+#### Características Técnicas
+
+- **Interpolación Inteligente**: Usa el step más fino de todos los archivos para mantener resolución
+- **Promediado de Traslapes**: Calcula automáticamente la media en zonas superpuestas
+- **Validación de Datos**: Filtra valores infinitos y NaN antes de la fusión
+- **Metadatos Completos**: Registra archivos originales, fecha de fusión y estadísticas
+
+#### Uso en la GUI
+
+**Fusión Automática:**
+1. Cargue archivos LAS con el mismo nombre de pozo
+2. El sistema detectará automáticamente los duplicados
+3. Seleccione "Sí" cuando pregunte si desea fusionar
+4. El pozo aparecerá marcado con 🔗 indicando que está fusionado
+5. Opcionalmente, guarde el registro fusionado como archivo LAS
+
+**Fusión Manual:**
+1. Vaya al tab "Comparar"
+2. Seleccione múltiples pozos para fusionar
+3. Use el botón "🔗 Fusionar Seleccionados"
+4. Ingrese un nombre para el pozo fusionado
+5. El sistema creará automáticamente el pozo combinado
+
+#### Ejemplo Práctico
+
+```
+Archivo 1: POZO_A_basicos.las  (800-1200m: GR, SP, CAL)
+Archivo 2: POZO_A_electricos.las (1000-1400m: RT, RES, GR)
+Archivo 3: POZO_A_neutron.las (1300-1600m: NPHI, DENS)
+
+Resultado Fusionado:
+- Rango: 800-1600m
+- Curvas: GR, SP, CAL, RT, RES, NPHI, DENS
+- Traslapes promediados en GR (1000-1200m)
+- Metadatos preservados de los 3 archivos originales
+```
 
 ## 🏗️ Arquitectura Modular
 
@@ -436,4 +486,4 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más det
 
 ## Desarrollado con ❤️ para la comunidad de geofísica e ingeniería
 
-**PyPozo 2.0** - Procesamiento profesional de registros geofísicos 
+**PyPozo 2.0** - Procesamiento profesional de registros geofísicos

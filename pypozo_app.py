@@ -28,7 +28,8 @@ try:
         QSplitter, QTreeWidget, QTreeWidgetItem, QTabWidget, QTextEdit,
         QMenuBar, QToolBar, QStatusBar, QFileDialog, QMessageBox,
         QPushButton, QLabel, QComboBox, QCheckBox, QSpinBox, QGroupBox,
-        QListWidget, QListWidgetItem, QProgressBar, QFrame, QScrollArea
+        QListWidget, QListWidgetItem, QProgressBar, QFrame, QScrollArea,
+        QInputDialog
     )
     from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
     from PyQt5.QtGui import QIcon, QFont, QPixmap, QTextCursor
@@ -355,6 +356,12 @@ class PyPozoApp(QMainWindow):
         self.compare_btn.clicked.connect(self.compare_wells)
         layout.addWidget(self.compare_btn)
         
+        # Botón para fusión manual
+        self.merge_btn = QPushButton("🔗 Fusionar Seleccionados")
+        self.merge_btn.clicked.connect(self.merge_selected_wells)
+        self.merge_btn.setStyleSheet("background-color: #17a2b8; color: white;")  # Color diferente
+        layout.addWidget(self.merge_btn)
+        
         return tab
     
     def create_analysis_tab(self) -> QWidget:
@@ -417,6 +424,7 @@ class PyPozoApp(QMainWindow):
         tools_menu = menubar.addMenu('🔧 Herramientas')
         tools_menu.addAction('📈 Análisis Completo', self.run_quick_analysis)
         tools_menu.addAction('⚖️ Comparar Pozos', self.compare_wells)
+        tools_menu.addAction('🔗 Fusionar Pozos', self.merge_selected_wells)
         
         # Ayuda
         help_menu = menubar.addMenu('❓ Ayuda')
@@ -580,6 +588,37 @@ class PyPozoApp(QMainWindow):
     def on_well_loaded(self, well: WellManager, filename: str):
         """Manejar pozo cargado exitosamente."""
         well_name = well.name or filename
+        
+        # Verificar si ya existe un pozo con el mismo nombre
+        if well_name in self.wells:
+            self.log_activity(f"🔄 Detectado pozo duplicado: {well_name}")
+            
+            # Preguntar al usuario si desea fusionar
+            reply = QMessageBox.question(
+                self, "Pozo Duplicado Detectado",
+                f"Ya existe un pozo con el nombre '{well_name}'.\n\n"
+                f"¿Desea fusionar los registros automáticamente?\n\n"
+                f"✅ Sí: Combinar registros y promediar traslapes\n"
+                f"❌ No: Mantener pozos separados",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            
+            if reply == QMessageBox.Yes:
+                self._merge_duplicate_wells(well_name, well)
+                self.progress_bar.setVisible(False)
+                return
+            else:
+                # Renombrar el nuevo pozo
+                counter = 2
+                new_name = f"{well_name}_{counter}"
+                while new_name in self.wells:
+                    counter += 1
+                    new_name = f"{well_name}_{counter}"
+                
+                well_name = new_name
+                self.log_activity(f"📝 Pozo renombrado a: {well_name}")
+        
+        # Agregar pozo (nuevo o renombrado)
         self.wells[well_name] = well
         
         # Agregar al árbol
@@ -828,15 +867,15 @@ class PyPozoApp(QMainWindow):
         # Colores profesionales
         colors = ['#2E8B57', '#DC143C', '#4169E1', '#FF8C00', '#8B4513', '#00CED1', '#9932CC', '#FF1493']
         
-        # Crear subplots usando plt.subplot en lugar de self.figure.subplots
-        # para evitar problemas con arrays booleanos
-        for i, curve_name in enumerate(curves):
-            ax = self.figure.add_subplot(1, n_curves, i + 1)
-            
+        # Determinar el rango de profundidad común para todos los subplots
+        all_depths = []
+        valid_curves = []
+        
+        # Primero, recopilar todos los datos válidos y sus rangos de profundidad
+        for curve_name in curves:
             if curve_name in df.columns:
                 curve_data = df[curve_name].dropna()
                 
-                # Verificar que tenemos datos válidos
                 if len(curve_data) == 0:
                     self.log_activity(f"⚠️ Curva {curve_name} no tiene datos válidos")
                     continue
@@ -850,52 +889,81 @@ class PyPozoApp(QMainWindow):
                     self.log_activity(f"⚠️ Curva {curve_name} no tiene valores finitos")
                     continue
                 
-                values = values[valid_mask]
-                depth = depth[valid_mask]
+                valid_depth = depth[valid_mask]
+                valid_values = values[valid_mask]
                 
-                # Graficar
-                color = colors[i % len(colors)]
-                ax.plot(values, depth, linewidth=1.5, color=color, label=curve_name)
-                ax.fill_betweenx(depth, values, alpha=0.3, color=color)
-                
-                # Obtener unidades para la etiqueta
-                units = well.get_curve_units(curve_name)
-                xlabel = f'{curve_name} ({units})' if units else curve_name
-                
-                # Configurar ejes
-                ax.set_xlabel(xlabel, fontsize=11, fontweight='bold')
-                ax.set_title(curve_name, fontsize=12, fontweight='bold', pad=15)
-                ax.invert_yaxis()  # Profundidad hacia abajo
-                ax.grid(True, alpha=0.3)
-                
-                # Estadísticas
-                stats_text = f'N: {len(values)}\nMin: {values.min():.1f}\nMax: {values.max():.1f}\nμ: {values.mean():.1f}'
-                
-                ax.text(0.02, 0.02, stats_text, transform=ax.transAxes,
-                       verticalalignment='bottom', horizontalalignment='left',
-                       bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.9),
-                       fontsize=8, fontfamily='monospace')
-                
-                # Solo el primer subplot tiene etiqueta Y
-                if i == 0:
-                    ax.set_ylabel('Profundidad (m)', fontsize=12, fontweight='bold')
+                all_depths.extend(valid_depth)
+                valid_curves.append((curve_name, valid_depth, valid_values))
             else:
                 self.log_activity(f"⚠️ Curva {curve_name} no encontrada en los datos")
         
-        # Título principal
-        depth_range = well.depth_range
-        title = f'{well.name} | Profundidad: {depth_range[0]:.0f}-{depth_range[1]:.0f}m'
-        self.figure.suptitle(title, fontsize=14, fontweight='bold')
+        if not valid_curves:
+            self.log_activity("❌ No se encontraron curvas válidas para graficar")
+            return
         
-        # Título principal
-        depth_range = well.depth_range
-        title = f'{well.name} | Profundidad: {depth_range[0]:.0f}-{depth_range[1]:.0f}m'
-        self.figure.suptitle(title, fontsize=14, fontweight='bold')
+        # Calcular el rango de profundidad común (union de todos los rangos)
+        common_depth_min = min(all_depths)
+        common_depth_max = max(all_depths)
         
-        # Ajustar layout de forma segura
+        self.log_activity(f"📊 Rango de profundidad común: {common_depth_min:.1f} - {common_depth_max:.1f} m")
+        
+        # Crear subplots con eje Y compartido
+        axes = []
+        for i, (curve_name, depth, values) in enumerate(valid_curves):
+            if i == 0:
+                # Primer subplot
+                ax = self.figure.add_subplot(1, len(valid_curves), i + 1)
+                axes.append(ax)
+            else:
+                # Subplots subsecuentes comparten el eje Y
+                ax = self.figure.add_subplot(1, len(valid_curves), i + 1, sharey=axes[0])
+                axes.append(ax)
+            
+            # Graficar
+            color = colors[i % len(colors)]
+            ax.plot(values, depth, linewidth=1.5, color=color, label=curve_name)
+            ax.fill_betweenx(depth, values, alpha=0.3, color=color)
+            
+            # Obtener unidades para la etiqueta (solo unidades, no repetir nombre)
+            units = well.get_curve_units(curve_name)
+            xlabel = f'({units})' if units else 'Valores'
+            
+            # Configurar ejes
+            ax.set_xlabel(xlabel, fontsize=11, fontweight='bold')
+            ax.set_title(curve_name, fontsize=12, fontweight='bold', pad=10)
+            ax.invert_yaxis()  # Profundidad hacia abajo
+            ax.grid(True, alpha=0.3)
+            
+            # Establecer el rango de profundidad común para todos los subplots
+            ax.set_ylim(common_depth_max, common_depth_min)  # Invertido para profundidad
+            
+            # Estadísticas
+            stats_text = f'N: {len(values)}\nMin: {values.min():.1f}\nMax: {values.max():.1f}\nμ: {values.mean():.1f}'
+            
+            ax.text(0.02, 0.02, stats_text, transform=ax.transAxes,
+                   verticalalignment='bottom', horizontalalignment='left',
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.9),
+                   fontsize=8, fontfamily='monospace')
+            
+            # Solo el primer subplot tiene etiqueta Y completa y valores de profundidad
+            if i == 0:
+                ax.set_ylabel('Profundidad (m)', fontsize=12, fontweight='bold')
+                # Asegurar que se muestren los valores de profundidad
+                ax.tick_params(axis='y', labelsize=10)
+            else:
+                # Los otros subplots NO muestran valores de profundidad para visualización más limpia
+                ax.tick_params(axis='y', labelsize=10, labelleft=False)
+                # Solo ocultar el label del eje Y y los valores
+                ax.set_ylabel('')
+        
+        # Título principal con más espacio
+        title = f'{well.name} | Profundidad: {common_depth_min:.0f}-{common_depth_max:.0f}m | {len(valid_curves)} curvas'
+        self.figure.suptitle(title, fontsize=14, fontweight='bold', y=0.95)
+        
+        # Ajustar layout de forma segura con más espacio arriba
         try:
             self.figure.tight_layout()
-            self.figure.subplots_adjust(top=0.9)
+            self.figure.subplots_adjust(top=0.85)  # Más espacio para el título
         except Exception as e:
             self.log_activity(f"⚠️ Warning en layout: {str(e)}")
         
@@ -1124,39 +1192,261 @@ Curvas principales encontradas:
         self.log_activity("🧹 Log de actividades limpiado")
     
     def refresh_view(self):
-        """Actualizar vista."""
-        self.update_wells_count()
-        self.update_comparison_list()
-        if self.current_well:
-            self.update_well_properties()
-            self.update_curves_list()
-        self.log_activity("🔄 Vista actualizada")
+        """Actualizar la vista completa de la aplicación."""
+        self.log_activity("🔄 Actualizando vista")
+        
+        try:
+            # Actualizar árbol de pozos
+            self.wells_tree.clear()
+            for well_name in self.wells.keys():
+                item = QTreeWidgetItem(self.wells_tree)
+                # Verificar si es un pozo fusionado
+                if hasattr(self.wells[well_name], 'metadata'):
+                    metadata = self.wells[well_name].metadata
+                    if 'original_files' in metadata and len(metadata['original_files']) > 1:
+                        item.setText(0, f"{well_name} 🔗")
+                    else:
+                        item.setText(0, well_name)
+                else:
+                    item.setText(0, well_name)
+                item.setData(0, Qt.UserRole, well_name)
+            
+            # Actualizar lista de comparación
+            self.update_comparison_list()
+            
+            # Actualizar contador de pozos
+            self.update_wells_count()
+            
+            # Si hay un pozo seleccionado, actualizar su información
+            if hasattr(self, 'current_well') and self.current_well:
+                if hasattr(self, 'update_well_properties'):
+                    self.update_well_properties()
+                if hasattr(self, 'update_curves_list'):
+                    self.update_curves_list()
+            
+            self.log_activity("✅ Vista actualizada exitosamente")
+            self.status_bar.showMessage("Vista actualizada", 2000)
+            
+        except Exception as e:
+            self.log_activity(f"❌ Error actualizando vista: {str(e)}")
+            QMessageBox.warning(self, "Error", f"Error actualizando vista:\n{str(e)}")
+    
+    # ========== FUNCIONES AUXILIARES ==========
     
     def show_about(self):
         """Mostrar información sobre la aplicación."""
         about_text = """
-<h2>PyPozo App 2.0</h2>
-<p><b>Sistema Profesional de Análisis de Pozos</b></p>
-<p>Alternativa Open Source a WellCAD</p>
-
-<p><b>Características:</b></p>
-<ul>
-<li>Carga y visualización de archivos LAS</li>
-<li>Análisis multi-curva interactivo</li>
-<li>Graficado de curvas juntas (superpuestas)</li>
-<li>Detección automática de curvas eléctricas</li>
-<li>Escala logarítmica automática para resistividad</li>
-<li>Visualización de unidades en etiquetas</li>
-<li>Comparación de pozos</li>
-<li>Exportación profesional</li>
-<li>Interface moderna y intuitiva</li>
-</ul>
-
-<p><b>Autor:</b> José María García Márquez</p>
-<p><b>Fecha:</b> Junio 2025</p>
-<p><b>Powered by:</b> PyQt5, Matplotlib, Welly</p>
+        <h2>PyPozo 2.0</h2>
+        <p>Sistema avanzado de análisis de registros de pozos</p>
+        <p><b>Características principales:</b></p>
+        <ul>
+        <li>Visualización interactiva de registros</li>
+        <li>Análisis petrofísico avanzado</li>
+        <li>Fusión automática de pozos</li>
+        <li>Exportación de datos y gráficos</li>
+        <li>Interfaz moderna y intuitiva</li>
+        </ul>
+        <p><b>Versión:</b> 2.0</p>
+        <p><b>Desarrollado con:</b> Python, PyQt5, Welly, Matplotlib</p>
         """
-        QMessageBox.about(self, "Acerca de PyPozo App", about_text)
+        QMessageBox.about(self, "Acerca de PyPozo", about_text)
+    
+    def _merge_duplicate_wells(self, well_name: str, new_well: WellManager):
+        """
+        Fusionar pozo duplicado con el existente.
+        
+        Args:
+            well_name: Nombre del pozo
+            new_well: Nuevo pozo a fusionar
+        """
+        try:
+            existing_well = self.wells[well_name]
+            self.log_activity(f"🔄 Iniciando fusión automática de pozos: {well_name}")
+            
+            # Mostrar información de ambos pozos
+            existing_range = existing_well.depth_range
+            new_range = new_well.depth_range
+            
+            self.log_activity(f"   📊 Pozo existente: {existing_range[0]:.1f}-{existing_range[1]:.1f}m, {len(existing_well.curves)} curvas")
+            self.log_activity(f"   📊 Pozo nuevo: {new_range[0]:.1f}-{new_range[1]:.1f}m, {len(new_well.curves)} curvas")
+            
+            # Fusionar usando el método de la clase WellManager
+            merged_well = WellManager.merge_wells([existing_well, new_well], well_name)
+            
+            if merged_well:
+                # Reemplazar el pozo existente con el fusionado
+                self.wells[well_name] = merged_well
+                
+                # Actualizar el árbol (buscar y actualizar el item existente)
+                for i in range(self.wells_tree.topLevelItemCount()):
+                    item = self.wells_tree.topLevelItem(i)
+                    if item.data(0, Qt.UserRole) == well_name:
+                        # Actualizar el texto para indicar que está fusionado
+                        item.setText(0, f"{well_name} 🔗")
+                        break
+                
+                # Actualizar UI si este pozo está seleccionado
+                if self.current_well_name == well_name:
+                    self.current_well = merged_well
+                    self.update_well_properties()
+                    self.update_curves_list()
+                
+                # Mostrar resumen de fusión
+                merged_range = merged_well.depth_range
+                self.log_activity(f"✅ Fusión completada exitosamente:")
+                self.log_activity(f"   🎯 Rango fusionado: {merged_range[0]:.1f}-{merged_range[1]:.1f}m")
+                self.log_activity(f"   📈 Total de curvas: {len(merged_well.curves)}")
+                
+                # Mostrar información de traslapes si existe
+                if 'overlaps_processed' in merged_well.metadata:
+                    overlaps = merged_well.metadata['overlaps_processed']
+                    if overlaps > 0:
+                        self.log_activity(f"   🔄 Traslapes promediados en {overlaps} curvas")
+                
+                # Preguntar si desea guardar el pozo fusionado
+                reply = QMessageBox.question(
+                    self, "Guardar Pozo Fusionado",
+                    f"Pozo '{well_name}' fusionado exitosamente.\n\n"
+                    f"Rango: {merged_range[0]:.1f}-{merged_range[1]:.1f}m\n"
+                    f"Curvas: {len(merged_well.curves)}\n\n"
+                    f"¿Desea guardar el pozo fusionado en un archivo LAS?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                
+                if reply == QMessageBox.Yes:
+                    self._save_merged_well(well_name, merged_well)
+                
+                self.status_bar.showMessage(f"Pozo fusionado: {well_name}", 5000)
+                
+            else:
+                self.log_activity(f"❌ Error durante la fusión de {well_name}")
+                QMessageBox.warning(self, "Error", f"No se pudo fusionar el pozo '{well_name}'")
+                
+        except Exception as e:
+            self.log_activity(f"❌ Error fusionando pozos: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error durante la fusión:\n{str(e)}")
+    
+    def _save_merged_well(self, well_name: str, merged_well: WellManager):
+        """
+        Guardar pozo fusionado en archivo LAS.
+        
+        Args:
+            well_name: Nombre del pozo
+            merged_well: Pozo fusionado a guardar
+        """
+        # Sugerir nombre de archivo
+        suggested_name = f"{well_name}_MERGED.las"
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Guardar Pozo Fusionado",
+            suggested_name,
+            "Archivos LAS (*.las);;Todos los archivos (*)"
+        )
+        
+        if file_path:
+            try:
+                success = merged_well.save_merged_well(file_path)
+                
+                if success:
+                    self.log_activity(f"💾 Pozo fusionado guardado: {Path(file_path).name}")
+                    self.status_bar.showMessage(f"Pozo fusionado guardado: {Path(file_path).name}", 3000)
+                    
+                    # Mostrar información adicional
+                    if 'original_files' in merged_well.metadata:
+                        files = merged_well.metadata['original_files']
+                        self.log_activity(f"   📁 Archivos fusionados: {len(files)}")
+                        for i, file in enumerate(files, 1):
+                            self.log_activity(f"      {i}. {file}")
+                else:
+                    self.log_activity(f"❌ Error guardando pozo fusionado")
+                    
+            except Exception as e:
+                self.log_activity(f"❌ Error guardando pozo fusionado: {str(e)}")
+                QMessageBox.critical(self, "Error", f"Error guardando archivo:\n{str(e)}")
+    
+    def merge_selected_wells(self):
+        """
+        Fusionar pozos seleccionados manualmente.
+        
+        Permite al usuario seleccionar múltiples pozos y fusionarlos
+        en uno solo, útil para combinar pozos relacionados.
+        """
+        selected_wells = [item.text().replace(" 🔗", "") for item in self.compare_list.selectedItems()]
+        
+        if len(selected_wells) < 2:
+            QMessageBox.warning(self, "Advertencia", "Seleccione al menos 2 pozos para fusionar.")
+            return
+        
+        # Pedir nombre para el pozo fusionado        
+        suggested_name = selected_wells[0] + "_COMBINED"
+        merge_name, ok = QInputDialog.getText(
+            self, 
+            "Nombre del Pozo Fusionado",
+            "Nombre para el pozo fusionado:",
+            text=suggested_name
+        )
+        
+        if not ok or not merge_name.strip():
+            return
+        
+        merge_name = merge_name.strip()
+        
+        try:
+            # Obtener objetos WellManager
+            wells_to_merge = []
+            for well_name in selected_wells:
+                if well_name in self.wells:
+                    wells_to_merge.append(self.wells[well_name])
+            
+            if not wells_to_merge:
+                QMessageBox.warning(self, "Error", "No se encontraron pozos válidos para fusionar.")
+                return
+            
+            self.log_activity(f"🔗 Fusionando {len(wells_to_merge)} pozos en: {merge_name}")
+            
+            # Fusionar pozos
+            merged_well = WellManager.merge_wells(wells_to_merge, merge_name)
+            
+            if merged_well:
+                # Agregar pozo fusionado
+                self.wells[merge_name] = merged_well
+                
+                # Agregar al árbol
+                item = QTreeWidgetItem(self.wells_tree)
+                item.setText(0, f"{merge_name} 🔗")
+                item.setData(0, Qt.UserRole, merge_name)
+                
+                # Actualizar UI
+                self.update_wells_count()
+                self.update_comparison_list()
+                
+                # Seleccionar el pozo fusionado
+                self.wells_tree.setCurrentItem(item)
+                self.on_well_selected(item, 0)
+                
+                merged_range = merged_well.depth_range
+                self.log_activity(f"✅ Pozos fusionados exitosamente en: {merge_name}")
+                self.log_activity(f"   🎯 Rango: {merged_range[0]:.1f}-{merged_range[1]:.1f}m")
+                self.log_activity(f"   📈 Curvas: {len(merged_well.curves)}")
+                
+                # Preguntar si desea guardar
+                reply = QMessageBox.question(
+                    self, "Guardar Pozo Fusionado",
+                    f"Pozos fusionados exitosamente en '{merge_name}'.\n\n"
+                    f"¿Desea guardar el pozo fusionado?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                
+                if reply == QMessageBox.Yes:
+                    self._save_merged_well(merge_name, merged_well)
+                    
+            else:
+                QMessageBox.critical(self, "Error", "No se pudo completar la fusión de pozos.")
+                
+        except Exception as e:
+            self.log_activity(f"❌ Error fusionando pozos: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error durante la fusión:\n{str(e)}")
     
     def plot_curves_together(self):
         """Graficar curvas seleccionadas juntas en la misma figura."""
@@ -1270,6 +1560,7 @@ Curvas principales encontradas:
             self.log_activity(f"❌ Error graficando curvas juntas: {str(e)}")
             QMessageBox.critical(self, "Error", f"Error creando gráfico:\n{str(e)}")
 
+
 def main():
     """Función principal."""
     if not PYQT5_AVAILABLE:
@@ -1299,6 +1590,7 @@ def main():
     
     # Ejecutar aplicación
     sys.exit(app.exec_())
+
 
 if __name__ == "__main__":
     main()

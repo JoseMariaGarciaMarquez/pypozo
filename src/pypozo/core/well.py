@@ -402,13 +402,120 @@ class WellManager:
         
         try:
             output_path = Path(output_path)
-            self._well.to_las(str(output_path))
             
-            logger.info(f"✅ Pozo exportado a: {output_path.name}")
-            return True
+            # Intentar exportación directa primero
+            try:
+                self._well.to_las(str(output_path))
+                logger.info(f"✅ Pozo exportado a: {output_path.name}")
+                return True
+            except Exception as e:
+                logger.warning(f"⚠️ Error con exportación directa: {str(e)}")
+                
+                # Método alternativo: crear archivo LAS manualmente
+                if "Please provide an index" in str(e):
+                    logger.info("🔧 Usando método alternativo para exportación...")
+                    return self._export_las_manual(output_path)
+                else:
+                    raise e
             
         except Exception as e:
             logger.error(f"❌ Error exportando a LAS: {str(e)}")
+            return False
+    
+    def _export_las_manual(self, output_path: Path) -> bool:
+        """
+        Exportar archivo LAS manualmente cuando Welly falla.
+        
+        Args:
+            output_path: Ruta del archivo de salida
+            
+        Returns:
+            bool: True si la exportación fue exitosa
+        """
+        try:
+            # Obtener datos del pozo
+            df = self._well.df()
+            if df.empty:
+                logger.error("❌ No hay datos para exportar")
+                return False
+            
+            # Obtener información básica
+            depth_min = df.index.min()
+            depth_max = df.index.max()
+            depth_step = df.index[1] - df.index[0] if len(df.index) > 1 else 0.1524
+            well_name = self.name or "UNKNOWN"
+            
+            # Crear archivo LAS con formato correcto
+            with open(output_path, 'w') as f:
+                # VERSION INFORMATION
+                f.write("~VERSION INFORMATION\n")
+                f.write(" VERS.                 2.0:   CWLS LOG ASCII STANDARD - VERSION 2.0\n")
+                f.write(" WRAP.                  NO:   SINGLE LINE PER DEPTH STEP\n")
+                
+                # WELL INFORMATION
+                f.write("~WELL INFORMATION\n")
+                f.write("#MNEM.UNIT       DATA           DESCRIPTION MNEMONIC\n")
+                f.write("#---------    -------------   --------------------------\n")
+                f.write(f" STRT.M         {depth_min:.4f}                      : START DEPTH\n")
+                f.write(f" STOP.M         {depth_max:.4f}                     : STOP DEPTH\n")
+                f.write(f" STEP.M         {depth_step:.4f}                        : STEP VALUE\n")
+                f.write(" NULL.          -999.0000                     : NULL VALUE\n")
+                f.write(" SRVC.          PYPOZO                        : Service Company/Logging company\n")
+                
+                # Fecha actual
+                from datetime import datetime
+                current_date = datetime.now().strftime('%d/%m/%Y')
+                f.write(f" DATE.          {current_date}                    : LAS file Creation Date\n")
+                f.write(f" WELL    .      {well_name:<30} : Well Name\n")
+                f.write(" COMP    .      PYPOZO 2.0                    : Company\n")
+                f.write(" FLD     .      UNKNOWN                       : Field\n")
+                f.write(" LOC     .      UNKNOWN                       : Location\n")
+                f.write(" LATI    .      0                             : Latitude/Northing\n")
+                f.write(" LONG    .      0                             : Longitude/Easting\n")
+                f.write(" APDAT   .      0                             : Elevation Above Permanent Datum\n")
+                
+                # CURVE INFORMATION
+                f.write("~CURVE INFORMATION\n")
+                f.write("#MNEM          UNIT     API CODE   Curve Type Comments\n")
+                f.write("#---------- ---------- ----------  ---------- --------\n")
+                
+                # Profundidad siempre primero
+                f.write(" DEPTH     .M                    : Depth      \n")
+                
+                # Curvas de datos
+                for curve_name in df.columns:
+                    units = self.get_curve_units(curve_name) or "UNIT"
+                    # Formatear unidades para que queden alineadas
+                    f.write(f" {curve_name:<10}.{units:<10}                 : {curve_name:<10} \n")
+                
+                # ASCII DATA SECTION
+                f.write("~A Log data section\n")
+                
+                # Datos - formato numérico correcto
+                for depth in df.index:
+                    # Formatear profundidad
+                    line = f"{depth:>10.4f}"
+                    
+                    # Formatear valores de curvas
+                    for curve_name in df.columns:
+                        value = df.loc[depth, curve_name]
+                        if pd.isna(value) or not np.isfinite(value):
+                            line += f"{'      -999.0000':>15}"
+                        else:
+                            line += f"{value:>15.4f}"
+                    
+                    f.write(line + " \n")
+            
+            # Verificar que el archivo se creó correctamente
+            if output_path.exists() and output_path.stat().st_size > 0:
+                logger.info(f"✅ Archivo LAS creado manualmente: {output_path.name} ({output_path.stat().st_size} bytes)")
+                return True
+            else:
+                logger.error("❌ El archivo creado está vacío o no existe")
+                return False
+            
+        except Exception as e:
+            logger.error(f"❌ Error en exportación manual: {str(e)}")
             return False
     
     def get_curve_units(self, curve_name: str) -> str:
@@ -430,13 +537,279 @@ class WellManager:
             logger.warning(f"⚠️ Error obteniendo unidades de {curve_name}: {str(e)}")
             return ''
     
-    def __str__(self) -> str:
-        """Representación en string del pozo."""
-        if not self._well:
-            return "WellManager(no well loaded)"
+    @classmethod
+    def merge_wells(cls, wells: List['WellManager'], well_name: str) -> 'WellManager':
+        """
+        Fusionar múltiples pozos con el mismo nombre en uno solo.
         
-        return f"WellManager(name='{self.name}', curves={len(self.curves)}, depth_range={self.depth_range})"
+        Combina registros de múltiples archivos LAS, maneja traslapes
+        calculando la media, y crea un pozo fusionado completo.
+        
+        Args:
+            wells: Lista de WellManager a fusionar
+            well_name: Nombre del pozo fusionado
+            
+        Returns:
+            WellManager: Pozo fusionado con todos los registros
+        """
+        if not wells:
+            logger.error("❌ No hay pozos para fusionar")
+            return None
+        
+        if len(wells) == 1:
+            logger.info(f"🔄 Solo un pozo encontrado para '{well_name}', no se requiere fusión")
+            return wells[0]
+        
+        logger.info(f"🔄 Iniciando fusión de {len(wells)} pozos para '{well_name}'")
+        
+        try:
+            # Obtener todos los rangos de profundidad
+            depth_ranges = []
+            all_curves = set()
+            
+            for well in wells:
+                depth_range = well.depth_range
+                depth_ranges.append(depth_range)
+                all_curves.update(well.curves)
+                logger.info(f"   📊 {well.metadata.get('source_file', 'unknown')}: "
+                           f"{depth_range[0]:.1f}-{depth_range[1]:.1f}m, "
+                           f"curvas: {len(well.curves)}")
+            
+            # Determinar rango de profundidad combinado
+            min_depth = min(dr[0] for dr in depth_ranges)
+            max_depth = max(dr[1] for dr in depth_ranges)
+            
+            logger.info(f"🎯 Rango fusionado: {min_depth:.1f}-{max_depth:.1f}m")
+            logger.info(f"📈 Total de curvas únicas: {len(all_curves)}")
+            
+            # Crear DataFrame maestro con índice de profundidad común
+            # Usar el step más fino de todos los pozos
+            steps = []
+            for well in wells:
+                df = well._well.df()
+                if len(df) > 1:
+                    step = abs(df.index[1] - df.index[0])
+                    steps.append(step)
+            
+            common_step = min(steps) if steps else 0.1524  # Default 0.5 ft
+            
+            # Crear índice de profundidad común
+            depth_index = np.arange(min_depth, max_depth + common_step, common_step)
+            merged_df = pd.DataFrame(index=depth_index)
+            
+            # Fusionar cada curva
+            overlap_info = {}
+            
+            for curve_name in sorted(all_curves):
+                logger.info(f"🔗 Procesando curva: {curve_name}")
+                
+                # Recolectar datos de esta curva de todos los pozos
+                curve_data_list = []
+                curve_units = None
+                
+                for well in wells:
+                    if curve_name in well.curves:
+                        curve_data = well.get_curve_data(curve_name)
+                        if curve_data is not None and len(curve_data) > 0:
+                            # Interpolate to common depth index
+                            interpolated = curve_data.reindex(depth_index, method='nearest', tolerance=common_step)
+                            curve_data_list.append(interpolated)
+                            
+                            # Obtener unidades (usar la primera encontrada)
+                            if curve_units is None:
+                                curve_units = well.get_curve_units(curve_name)
+                
+                if curve_data_list:
+                    # Combinar datos, calculando media en traslapes
+                    combined_data = cls._merge_curve_data(curve_data_list, curve_name, overlap_info)
+                    merged_df[curve_name] = combined_data
+                    
+                    logger.info(f"   ✅ {curve_name}: {(~combined_data.isna()).sum()} puntos válidos")
+                    if curve_name in overlap_info:
+                        logger.info(f"   🔄 Traslapes promediados: {overlap_info[curve_name]} puntos")
+            
+            # Crear pozo fusionado usando el primer pozo como base
+            base_well = wells[0]._well
+            
+            # Crear nuevo objeto Well con datos fusionados
+            merged_well_data = {}
+            for curve_name in merged_df.columns:
+                curve_data = merged_df[curve_name].dropna()
+                if len(curve_data) > 0:
+                    # Obtener unidades de la curva original
+                    units = None
+                    for well in wells:
+                        if curve_name in well.curves:
+                            units = well.get_curve_units(curve_name)
+                            if units:
+                                break
+                    
+                    # Crear objeto Curve
+                    curve = welly.Curve(curve_data.values, 
+                                      basis=curve_data.index.values,
+                                      mnemonic=curve_name,
+                                      units=units or '')
+                    merged_well_data[curve_name] = curve
+            
+            # Crear Well fusionado manualmente curva por curva
+            # Método más robusto que funciona con las limitaciones de Welly
+            merged_well = welly.Well()
+            merged_well.name = well_name
+            
+            logger.info(f"🔧 Creando pozo fusionado con {len(merged_df.columns)} curvas")
+            
+            # Procesar cada curva individualmente
+            for curve_name in merged_df.columns:
+                curve_data = merged_df[curve_name].dropna()
+                if len(curve_data) > 0:
+                    logger.info(f"   📈 Agregando curva {curve_name}: {len(curve_data)} puntos")
+                    
+                    # Obtener unidades de la curva original
+                    units = None
+                    for well in wells:
+                        if curve_name in well.curves:
+                            units = well.get_curve_units(curve_name)
+                            if units:
+                                break
+                    
+                    try:
+                        # Crear objeto Curve con datos y basis correctos
+                        curve = welly.Curve(
+                            data=curve_data.values,
+                            basis=curve_data.index.values,
+                            mnemonic=curve_name,
+                            units=units or '',
+                            index_units='m'
+                        )
+                        
+                        # Agregar la curva al pozo
+                        merged_well.data[curve_name] = curve
+                        
+                    except Exception as curve_error:
+                        logger.warning(f"⚠️ Error creando curva {curve_name}: {curve_error}")
+                        continue
+            
+            # Establecer metadatos básicos del pozo
+            merged_well.name = well_name
+            
+            # Configurar basis común basado en el índice del DataFrame
+            if len(merged_df.index) > 0:
+                merged_well.basis = merged_df.index.values
+                logger.info(f"   🎯 Basis configurado: {len(merged_well.basis)} puntos de profundidad")
+            
+            # Verificar que el pozo tiene curvas válidas
+            valid_curves = 0
+            for curve_name, curve in merged_well.data.items():
+                if curve is not None and hasattr(curve, 'values') and len(curve.values) > 0:
+                    valid_curves += 1
+            
+            logger.info(f"   ✅ Pozo creado con {valid_curves} curvas válidas")
+            
+            # Copiar header del primer pozo como base
+            if hasattr(base_well, 'header') and base_well.header is not None:
+                merged_well.header = base_well.header.copy()
+            
+            # Actualizar metadata del header
+            merged_well.name = well_name
+            
+            # Crear WellManager del pozo fusionado
+            merged_manager = cls(merged_well)
+            merged_manager._metadata = {
+                'source_file': f'{well_name}_MERGED.las',
+                'original_files': [w.metadata.get('source_file', 'unknown') for w in wells],
+                'merge_date': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'curves_merged': len(all_curves),
+                'overlaps_processed': len(overlap_info)
+            }
+            
+            logger.info(f"✅ Fusión completada exitosamente:")
+            logger.info(f"   📊 Curvas fusionadas: {len(merged_df.columns)}")
+            logger.info(f"   🎯 Rango final: {merged_manager.depth_range}")
+            logger.info(f"   🔄 Traslapes procesados: {len(overlap_info)}")
+            
+            return merged_manager
+            
+        except Exception as e:
+            logger.error(f"❌ Error durante la fusión: {str(e)}")
+            return None
     
-    def __repr__(self) -> str:
-        """Representación para debugging."""
-        return self.__str__()
+    @staticmethod
+    def _merge_curve_data(curve_data_list: List[pd.Series], curve_name: str, overlap_info: dict) -> pd.Series:
+        """
+        Fusionar datos de una curva específica de múltiples pozos.
+        
+        Args:
+            curve_data_list: Lista de Series con datos de la curva
+            curve_name: Nombre de la curva
+            overlap_info: Diccionario para almacenar información de traslapes
+            
+        Returns:
+            pd.Series: Datos fusionados de la curva
+        """
+        if not curve_data_list:
+            return pd.Series(dtype=float)
+        
+        if len(curve_data_list) == 1:
+            return curve_data_list[0]
+        
+        # Combinar todas las series
+        combined_index = curve_data_list[0].index
+        result = pd.Series(index=combined_index, dtype=float)
+        
+        overlap_count = 0
+        
+        for depth in combined_index:
+            valid_values = []
+            
+            # Recolectar valores válidos en esta profundidad
+            for curve_data in curve_data_list:
+                if depth in curve_data.index and pd.notna(curve_data[depth]):
+                    valid_values.append(curve_data[depth])
+            
+            if valid_values:
+                if len(valid_values) == 1:
+                    # Sin traslape
+                    result[depth] = valid_values[0]
+                else:
+                    # Traslape: calcular media
+                    result[depth] = np.mean(valid_values)
+                    overlap_count += 1
+        
+        if overlap_count > 0:
+            overlap_info[curve_name] = overlap_count
+        
+        return result
+    
+    def save_merged_well(self, output_path: Union[str, Path]) -> bool:
+        """
+        Guardar el pozo fusionado en un archivo LAS.
+        
+        Args:
+            output_path: Ruta del archivo de salida
+            
+        Returns:
+            bool: True si se guardó exitosamente
+        """
+        try:
+            output_path = Path(output_path)
+            
+            # Asegurar que el directorio existe
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Exportar usando el método existente
+            success = self.export_to_las(output_path)
+            
+            if success:
+                logger.info(f"💾 Pozo fusionado guardado: {output_path.name}")
+                
+                # Agregar información de fusión en el log
+                if 'original_files' in self._metadata:
+                    logger.info(f"   📁 Archivos originales: {len(self._metadata['original_files'])}")
+                    for i, file in enumerate(self._metadata['original_files'], 1):
+                        logger.info(f"      {i}. {file}")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"❌ Error guardando pozo fusionado: {str(e)}")
+            return False
