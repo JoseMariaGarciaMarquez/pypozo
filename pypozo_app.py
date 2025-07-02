@@ -98,6 +98,18 @@ class PyPozoApp(QMainWindow):
     def init_ui(self):
         """Inicializar la interfaz de usuario."""
         self.setWindowTitle("PyPozo App - Análisis Profesional de Pozos")
+        
+        # Configurar ícono de la aplicación
+        try:
+            icon_path = Path(__file__).parent / "images" / "icono.png"
+            if icon_path.exists():
+                self.setWindowIcon(QIcon(str(icon_path)))
+                logger.info(f"✅ Ícono cargado: {icon_path}")
+            else:
+                logger.warning(f"⚠️ Ícono no encontrado: {icon_path}")
+        except Exception as e:
+            logger.warning(f"⚠️ Error cargando ícono: {e}")
+        
         self.setGeometry(100, 100, 1600, 1000)
         
         # Widget central
@@ -613,6 +625,11 @@ class PyPozoApp(QMainWindow):
         # Info labels
         self.wells_count_label = QLabel("Pozos: 0")
         self.status_bar.addPermanentWidget(self.wells_count_label)
+        
+        # Versión y branding
+        version_label = QLabel("PyPozo v2.0.0")
+        version_label.setStyleSheet("color: #666; font-weight: bold; margin: 0 10px;")
+        self.status_bar.addPermanentWidget(version_label)
     
     def apply_professional_style(self):
         """Aplicar estilo profesional."""

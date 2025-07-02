@@ -1,6 +1,12 @@
 # Manual de Usuario - PyPozo 2.0
 
-![PyPozo Logo](../examples/pypozo_logo.png)
+<div align="center">
+  <img src="../images/logo_completo.png" alt="PyPozo - Sistema Profesional de Análisis de Pozos" width="500"/>
+  
+  **Manual Completo del Usuario**
+  
+  *Versión 2.0.0 | Julio 2025*
+</div>
 
 ## 📋 Tabla de Contenidos
 

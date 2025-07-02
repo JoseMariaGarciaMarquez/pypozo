@@ -1,5 +1,15 @@
 # PyPozo 2.0 🛢️
 
+<div align="center">
+  <img src="images/logo_completo.png" alt="PyPozo Logo" width="400"/>
+  
+  **Sistema Profesional de Análisis de Pozos**
+  
+  [![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
+  [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+  [![Version](https://img.shields.io/badge/Version-2.0.0-orange.svg)](pyproject.toml)
+</div>
+
 **PyPozo 2.0** es un sistema moderno y profesional de análisis de pozos con interfaz gráfica avanzada, diseñado como alternativa Open Source a WellCAD. Ofrece capacidades completas de procesamiento, visualización e interpretación de registros geofísicos.
 
 ## 🎯 Características Principales
@@ -14,22 +24,46 @@
 ✅ **Comparación de Pozos** - Análisis comparativo de múltiples pozos  
 ✅ **Procesamiento Automatizado** - Flujos de trabajo estandarizados y profesionales  
 
-## � Nuevas Funcionalidades v2.0
+## 🧪 Nuevas Funcionalidades Petrofísicas v2.0 ✨
 
-### 🔗 **Graficado de Curvas Combinadas**
-- **Curvas Superpuestas**: Graficar múltiples registros en la misma figura
-- **Normalización Opcional**: Escalado 0-1 para comparación visual
-- **Detección Inteligente**: Aplicación automática de escala logarítmica
+### 🏔️ **Cálculo de VCL (Volumen de Arcilla)**
+- **5 Métodos Estándar**: Linear, Larionov (Older/Tertiary), Clavier, Steiber
+- **Validación Automática**: Control de rangos físicos y QC integrado
+- **Parámetros Flexibles**: GR_clean y GR_clay configurables
+- **Estadísticas QC**: Histogramas y análisis de calidad automático
 
-### ⚡ **Análisis de Curvas Eléctricas**
-- **Detección por Unidades**: Identifica automáticamente curvas con unidades OHMM, OHM
-- **Patrones de Nombres**: Reconoce RT, RES, ILM, LLD, M1R, etc.
-- **Escala Log Automática**: Aplicación inteligente para registros de resistividad
+### 🕳️ **Cálculo de Porosidad Efectiva (PHIE)**
+- **3 Métodos Implementados**: Densidad, Neutrón, Combinado (Densidad-Neutrón)
+- **Múltiples Litologías**: Arenisca, Caliza, Dolomita con densidades de matriz apropiadas
+- **Correcciones Avanzadas**: ✨ **NUEVO**
+  - **Corrección por Arcilla**: Modelo Thomas-Stieber implementado
+  - **Corrección por Gas**: Detección automática de efectos de hidrocarburos
+- **Análisis Litológico**: ✨ **NUEVO** - Identificación automática de litología desde PHID-PHIN
 
-### 🏷️ **Visualización Mejorada**
-- **Unidades en Etiquetas**: Muestra automáticamente las unidades en ejes
-- **Estadísticas Integradas**: N, Min, Max, Media en cada gráfico
-- **Colores Profesionales**: Paleta optimizada para análisis técnico
+### 🪨 **Análisis Litológico Automático** ✨ **NUEVA FUNCIONALIDAD**
+```python
+# Análisis automático de litología desde registros
+litho_analysis = porosity_calculator.get_lithology_recommendations(phid, phin)
+
+print(f"Litología dominante: {litho_analysis['dominant_lithology']}")
+print(f"Confianza: {litho_analysis['confidence']:.1%}")
+print(f"Densidad de matriz recomendada: {litho_analysis['recommended_matrix_density']:.2f} g/cc")
+```
+
+**Características:**
+- Identificación automática de arenisca, caliza, dolomita
+- Análisis de distribución litológica porcentual
+- Recomendaciones de densidad de matriz optimizadas
+- Integración completa con la GUI
+
+## 🎨 Mejoras Visuales y UX v2.0
+
+### 🏷️ **Branding Profesional**
+- **Ícono Oficial**: Ícono personalizado para la aplicación (`images/icono.png`)
+- **Logo Completo**: Branding visual en documentación (`images/logo_completo.png`)
+- **Interfaz Mejorada**: Estilo visual profesional y consistente
+
+### 📊 **Funcionalidades de Graficado Avanzadas**
 
 ### 🔗 **Fusión Automática de Pozos**
 
@@ -444,7 +478,25 @@ plotter.plot_well_logs_enhanced(well, well.curves[:5])
 | **Logging** | No | Completo |
 | **Validación** | Mínima | Automática |
 
-## 🤝 Contribuir
+## 📚 Documentación Completa v2.0
+
+### 🚀 **Para Usuarios Nuevos**
+- **[Guía Rápida](docs/GUIA_RAPIDA.md)** - ¡Comience en 5 minutos!
+- **[Manual de Usuario](docs/MANUAL_USUARIO.md)** - Guía completa paso a paso
+- **[Centro de Documentación](docs/README.md)** - Índice central de toda la documentación
+
+### 👨‍💻 **Para Desarrolladores**
+- **[Referencia de API](docs/API_REFERENCE.md)** - Documentación técnica completa
+- **[Ejemplos de Código](examples/)** - Scripts de ejemplo listos para usar
+- **[Notebooks Tutoriales](notebooks/)** - Jupyter notebooks interactivos
+
+### � **Nuevas Funcionalidades Documentadas**
+- ✅ **Correcciones de Arcilla y Gas**: Implementación Thomas-Stieber
+- ✅ **Análisis Litológico Automático**: Identificación PHID-PHIN
+- ✅ **Workflows Avanzados**: Templates para diferentes tipos de rocas
+- ✅ **Mejores Prácticas**: Guías de uso profesional
+
+## �🤝 Contribuir
 
 ¡Las contribuciones son bienvenidas! Por favor:
 
@@ -456,18 +508,49 @@ plotter.plot_well_logs_enhanced(well, well.curves[:5])
 
 ## 📋 Roadmap PyPozo 2.0
 
-- [x] **v2.0.0**: Arquitectura modular completa
-- [x] **v2.0.0**: Workflow estándar automatizado
-- [x] **v2.0.0**: Integración GIS completa
+- [x] **v2.0.0**: Arquitectura modular completa ✅
+- [x] **v2.0.0**: Workflow estándar automatizado ✅
+- [x] **v2.0.0**: Cálculos petrofísicos robustos (VCL, PHIE) ✅
+- [x] **v2.0.0**: Correcciones avanzadas (arcilla, gas) ✅
+- [x] **v2.0.0**: Análisis litológico automático ✅
+- [x] **v2.0.0**: Documentación completa de usuario ✅
+- [ ] **v2.1.0**: Saturación de agua (SW) - Archie, Waxman-Smits
 - [ ] **v2.1.0**: Tests unitarios al 100%
-- [ ] **v2.2.0**: Documentación API completa
-- [ ] **v2.3.0**: Interfaz web opcional
-- [ ] **v2.4.0**: Integración con bases de datos
-- [ ] **v3.0.0**: Módulos de inteligencia artificial
+- [ ] **v2.2.0**: Workflows personalizados visual
+- [ ] **v2.3.0**: Integración cloud computing
+- [ ] **v2.4.0**: Módulos de machine learning
+- [ ] **v3.0.0**: Interfaz web y colaboración en tiempo real
 
 ## ⚠️ Estado del Desarrollo
 
-**PyPozo 2.0 está funcional y listo para uso profesional.** 
+---
+
+## ✅ Estado del Proyecto
+
+**PyPozo 2.0 Fase 1 está COMPLETADA y LISTA PARA PRODUCCIÓN** 🎉
+
+### 🎯 Funcionalidades 100% Implementadas
+- ✅ **Interfaz Gráfica Profesional** con ícono oficial
+- ✅ **Cálculos Petrofísicos Robustos** (VCL: 5 métodos, PHIE: 3 métodos)
+- ✅ **Correcciones Avanzadas** (arcilla Thomas-Stieber, gas automático)
+- ✅ **Análisis Litológico** automático desde registros
+- ✅ **Documentación Empresarial** completa (4 manuales)
+- ✅ **Workflows Automatizados** para diferentes tipos de rocas
+- ✅ **Tests y Validación** en pozos reales
+
+### 🏆 Calidad Profesional
+- **Alternativa Real a WellCAD**: Funcionalidades comparables sin licencias
+- **Estándares de la Industria**: Métodos validados (Larionov, Thomas-Stieber)
+- **Código Empresarial**: Arquitectura extensible y bien documentada
+- **Open Source**: Contribución a la comunidad geofísica mundial
+
+**PyPozo 2.0 está funcional y listo para uso profesional.**
+
+---
+
+*Implementado por: José María García Márquez*  
+*Fecha: Julio 2, 2025*  
+*Versión: 2.0.0 - Fase 1 Completada*
 
 La nueva arquitectura es estable y todas las funcionalidades principales están operativas. Se recomienda migrar de PyPozo 1.x a PyPozo 2.0 para obtener los beneficios de automatización y estandarización.
 

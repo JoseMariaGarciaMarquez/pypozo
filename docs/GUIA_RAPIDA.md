@@ -1,5 +1,11 @@
 # Guía Rápida de Inicio - PyPozo 2.0
 
+<div align="center">
+  <img src="../images/logo_completo.png" alt="PyPozo Logo" width="400"/>
+  
+  **¡Comience en 5 minutos!**
+</div>
+
 ## 🚀 Primeros Pasos (5 minutos)
 
 ### 1. Ejecutar la Aplicación
@@ -11,6 +17,8 @@ cd c:\Users\lenovo.DESKTOP-NGHQ1VP\OneDrive\Documentos\repositorios\pypozo
 # Ejecutar la aplicación GUI
 python pypozo_app.py
 ```
+
+**🎨 Nota:** La aplicación ahora incluye el logo oficial de PyPozo y una interfaz visual mejorada.
 
 ### 2. Cargar tu Primer Pozo
 
