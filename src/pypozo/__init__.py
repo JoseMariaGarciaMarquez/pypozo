@@ -26,11 +26,15 @@ try:
     from .core.well import WellManager
     from .core.project import ProjectManager
     from .visualization.plotter import WellPlotter
+    from .petrophysics import VclCalculator, PorosityCalculator, PetrophysicsCalculator
     
     __all__ = [
         "WellManager",
         "ProjectManager",
-        "WellPlotter"
+        "WellPlotter",
+        "VclCalculator",
+        "PorosityCalculator",
+        "PetrophysicsCalculator"
     ]
 except ImportError as e:
     # Permite importar el paquete incluso si algunos módulos no están disponibles

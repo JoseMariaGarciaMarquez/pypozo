@@ -259,10 +259,286 @@ class WellManager:
         except Exception as e:
             logger.error(f"❌ Error obteniendo curva {curve_name}: {str(e)}")
             return None
+    
+    def add_curve(self, curve_name: str, data: Union[pd.Series, np.ndarray, List], units: str = '', description: str = '') -> bool:
+        """
+        Agregar una nueva curva al pozo.
         
-        # Crear Series con índice de profundidad
-        depth = self._well.basis
-        return pd.Series(curve.data, index=depth, name=curve_name)
+        Args:
+            curve_name: Nombre de la nueva curva
+            data: Datos de la curva (Series, array o lista)
+            units: Unidades de la curva
+            description: Descripción de la curva
+            
+        Returns:
+            bool: True si la curva fue agregada exitosamente
+        """
+        if not self._well:
+            logger.error("❌ No hay pozo cargado")
+            return False
+        
+        try:
+            from welly import Curve
+            
+            # Obtener el índice de profundidad existente
+            if hasattr(self._well, 'basis') and self._well.basis is not None:
+                depth_index = self._well.basis
+            else:
+                # Usar el índice del DataFrame existente
+                df = self._well.df()
+                if not df.empty:
+                    depth_index = df.index
+                else:
+                    logger.error("❌ No se puede determinar el índice de profundidad")
+                    return False
+            
+            # Convertir datos a array si es necesario
+            if isinstance(data, pd.Series):
+                curve_data = data.values
+                # Si la serie tiene un índice diferente, reindexar
+                if not data.index.equals(depth_index):
+                    data = data.reindex(depth_index)
+                    curve_data = data.values
+            elif isinstance(data, (list, np.ndarray)):
+                curve_data = np.array(data)
+            else:
+                logger.error(f"❌ Tipo de datos no soportado: {type(data)}")
+                return False
+            
+            # Asegurar que los datos tengan la misma longitud que el índice
+            if len(curve_data) != len(depth_index):
+                logger.warning(f"⚠️ Longitud de datos ({len(curve_data)}) no coincide con profundidad ({len(depth_index)})")
+                # Intentar ajustar
+                min_len = min(len(curve_data), len(depth_index))
+                curve_data = curve_data[:min_len]
+                depth_index = depth_index[:min_len]
+            
+            # Crear la curva de Welly
+            new_curve = Curve(
+                data=curve_data,
+                basis=depth_index,
+                mnemonic=curve_name,
+                units=units,
+                description=description
+            )
+            
+            # Agregar la curva al pozo
+            self._well.data[curve_name] = new_curve
+            
+            logger.info(f"✅ Curva agregada: {curve_name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error agregando curva {curve_name}: {str(e)}")
+            return False
+    
+    @property
+    def data(self) -> 'WellDataFrame':
+        """
+        Obtener DataFrame con todas las curvas del pozo.
+        
+        Returns:
+            WellDataFrame: DataFrame wrapper que permite asignación de curvas
+        """
+        return WellDataFrame(self)
+    
+    def get_curve_units(self, curve_name: str) -> str:
+        """
+        Obtener las unidades de una curva específica.
+        
+        Args:
+            curve_name: Nombre de la curva
+            
+        Returns:
+            str: Unidades de la curva
+        """
+        if not self._well or not hasattr(self._well, 'data') or not self._well.data:
+            return ''
+        
+        try:
+            # Buscar la curva en el diccionario de datos de Welly
+            for curve_name_key, curve_obj in self._well.data.items():
+                if curve_name_key.upper() == curve_name.upper():
+                    return getattr(curve_obj, 'units', '') or ''
+            
+            # Si no se encuentra, retornar string vacío
+            return ''
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error obteniendo unidades para {curve_name}: {str(e)}")
+            return ''
+
+
+class WellDataFrame:
+    """
+    Wrapper para el DataFrame del pozo que permite asignación de nuevas curvas.
+    """
+    
+    def __init__(self, well_manager: 'WellManager'):
+        self._well_manager = well_manager
+    
+    def __getitem__(self, key):
+        """Obtener curva o slice del DataFrame."""
+        df = self._get_dataframe()
+        return df[key]
+    
+    def __setitem__(self, key: str, value):
+        """Asignar nueva curva al pozo."""
+        if isinstance(key, str):
+            # Agregar nueva curva
+            self._well_manager.add_curve(key, value)
+        else:
+            raise ValueError("Solo se puede asignar curvas individuales por nombre")
+    
+    def __getattr__(self, name):
+        """Delegar atributos y métodos al DataFrame subyacente."""
+        df = self._get_dataframe()
+        return getattr(df, name)
+    
+    def __len__(self):
+        """Obtener longitud del DataFrame."""
+        df = self._get_dataframe()
+        return len(df)
+    
+    def __iter__(self):
+        """Iterar sobre las columnas del DataFrame."""
+        df = self._get_dataframe()
+        return iter(df)
+    
+    def __str__(self):
+        """Representación string del DataFrame."""
+        df = self._get_dataframe()
+        return str(df)
+    
+    def __repr__(self):
+        """Representación del DataFrame."""
+        df = self._get_dataframe()
+        return repr(df)
+    
+    def _get_dataframe(self) -> pd.DataFrame:
+        """Obtener el DataFrame subyacente."""
+        if not self._well_manager._well:
+            return pd.DataFrame()
+            
+        if not hasattr(self._well_manager._well, 'data'):
+            return pd.DataFrame()
+            
+        if not self._well_manager._well.data:
+            return pd.DataFrame()
+
+        try:
+            # Add timeout protection and error handling
+            df = self._well_manager._well.df()
+            if df is None:
+                return pd.DataFrame()
+            return df
+        except Exception as e:
+            logger.warning(f"⚠️ Error obteniendo DataFrame del pozo: {str(e)}")
+            # Fallback: try to create DataFrame manually from curves
+            try:
+                data_dict = {}
+                for curve_name, curve in self._well_manager._well.data.items():
+                    if hasattr(curve, 'data') and hasattr(curve, 'basis'):
+                        data_dict[curve_name] = pd.Series(curve.data, index=curve.basis)
+                
+                if data_dict:
+                    return pd.DataFrame(data_dict)
+                else:
+                    return pd.DataFrame()
+            except Exception as fallback_error:
+                logger.error(f"❌ Error en fallback DataFrame: {str(fallback_error)}")
+                return pd.DataFrame()
+    
+    @property
+    def columns(self):
+        """Obtener columnas del DataFrame."""
+        df = self._get_dataframe()
+        return df.columns
+    
+    @property
+    def index(self):
+        """Obtener índice del DataFrame.""" 
+        df = self._get_dataframe()
+        return df.index
+    
+    def to_csv(self, *args, **kwargs):
+        """Exportar a CSV."""
+        df = self._get_dataframe()
+        return df.to_csv(*args, **kwargs)
+    
+
+    
+    def add_curve(self, curve_name: str, data: Union[pd.Series, np.ndarray, List], units: str = '', description: str = '') -> bool:
+        """
+        Agregar una nueva curva al pozo.
+        
+        Args:
+            curve_name: Nombre de la nueva curva
+            data: Datos de la curva (Series, array o lista)
+            units: Unidades de la curva
+            description: Descripción de la curva
+            
+        Returns:
+            bool: True si la curva fue agregada exitosamente
+        """
+        if not self._well:
+            logger.error("❌ No hay pozo cargado")
+            return False
+        
+        try:
+            from welly import Curve
+            
+            # Obtener el índice de profundidad existente
+            if hasattr(self._well, 'basis') and self._well.basis is not None:
+                depth_index = self._well.basis
+            else:
+                # Usar el índice del DataFrame existente
+                df = self._well.df()
+                if not df.empty:
+                    depth_index = df.index
+                else:
+                    logger.error("❌ No se puede determinar el índice de profundidad")
+                    return False
+            
+            # Convertir datos a array si es necesario
+            if isinstance(data, pd.Series):
+                curve_data = data.values
+                # Si la serie tiene un índice diferente, reindexar
+                if not data.index.equals(depth_index):
+                    data = data.reindex(depth_index)
+                    curve_data = data.values
+            elif isinstance(data, (list, np.ndarray)):
+                curve_data = np.array(data)
+            else:
+                logger.error(f"❌ Tipo de datos no soportado: {type(data)}")
+                return False
+            
+            # Asegurar que los datos tengan la misma longitud que el índice
+            if len(curve_data) != len(depth_index):
+                logger.warning(f"⚠️ Longitud de datos ({len(curve_data)}) no coincide con profundidad ({len(depth_index)})")
+                # Intentar ajustar
+                min_len = min(len(curve_data), len(depth_index))
+                curve_data = curve_data[:min_len]
+                depth_index = depth_index[:min_len]
+            
+            # Crear la curva de Welly
+            new_curve = Curve(
+                data=curve_data,
+                basis=depth_index,
+                mnemonic=curve_name,
+                units=units,
+                description=description
+            )
+            
+            # Agregar la curva al pozo
+            self._well.data[curve_name] = new_curve
+            
+            logger.info(f"✅ Curva agregada: {curve_name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error agregando curva {curve_name}: {str(e)}")
+            return False
     
     def get_curves_dataframe(self, curves: Optional[List[str]] = None) -> pd.DataFrame:
         """
@@ -310,29 +586,31 @@ class WellManager:
         if not self._well:
             return {}
         
-        # Buscar la curva
+        # Buscar la curva en el diccionario de datos de Welly
         curve = None
-        for c in self._well.data:
-            if c.mnemonic.upper() == curve_name.upper():
-                curve = c
+        for curve_name_key, curve_obj in self._well.data.items():
+            if curve_name_key.upper() == curve_name.upper():
+                curve = curve_obj
                 break
         
         if not curve:
             return {}
         
         return {
-            'mnemonic': curve.mnemonic,
-            'description': curve.description or '',
-            'units': curve.units or '',
-            'data_type': str(curve.data.dtype),
-            'null_value': curve.null_value,
-            'min_value': float(np.nanmin(curve.data)),
-            'max_value': float(np.nanmax(curve.data)),
-            'mean_value': float(np.nanmean(curve.data)),
-            'valid_points': int(np.sum(~np.isnan(curve.data))),
-            'total_points': len(curve.data),
-            'completeness': float(np.sum(~np.isnan(curve.data)) / len(curve.data))
+            'mnemonic': getattr(curve, 'mnemonic', curve_name),
+            'description': getattr(curve, 'description', '') or '',
+            'units': getattr(curve, 'units', '') or '',
+            'data_type': str(curve.data.dtype) if hasattr(curve, 'data') else 'unknown',
+            'null_value': getattr(curve, 'null_value', None),
+            'min_value': float(np.nanmin(curve.data)) if hasattr(curve, 'data') else 0.0,
+            'max_value': float(np.nanmax(curve.data)) if hasattr(curve, 'data') else 0.0,
+            'mean_value': float(np.nanmean(curve.data)) if hasattr(curve, 'data') else 0.0,
+            'valid_points': int(np.sum(~np.isnan(curve.data))) if hasattr(curve, 'data') else 0,
+            'total_points': len(curve.data) if hasattr(curve, 'data') else 0,
+            'completeness': float(np.sum(~np.isnan(curve.data)) / len(curve.data)) if hasattr(curve, 'data') and len(curve.data) > 0 else 0.0
         }
+    
+
     
     def get_well_summary(self) -> Dict:
         """
@@ -517,25 +795,6 @@ class WellManager:
         except Exception as e:
             logger.error(f"❌ Error en exportación manual: {str(e)}")
             return False
-    
-    def get_curve_units(self, curve_name: str) -> str:
-        """
-        Obtener las unidades de una curva específica.
-        
-        Args:
-            curve_name: Nombre de la curva
-            
-        Returns:
-            str: Unidades de la curva (vacío si no se encuentran)
-        """
-        try:
-            curve = self._well.data.get(curve_name)
-            if curve and hasattr(curve, 'units'):
-                return curve.units or ''
-            return ''
-        except Exception as e:
-            logger.warning(f"⚠️ Error obteniendo unidades de {curve_name}: {str(e)}")
-            return ''
     
     @classmethod
     def merge_wells(cls, wells: List['WellManager'], well_name: str) -> 'WellManager':
