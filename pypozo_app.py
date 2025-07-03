@@ -29,7 +29,7 @@ try:
         QMenuBar, QToolBar, QStatusBar, QFileDialog, QMessageBox,
         QPushButton, QLabel, QComboBox, QCheckBox, QSpinBox, QGroupBox,
         QListWidget, QListWidgetItem, QProgressBar, QFrame, QScrollArea,
-        QInputDialog, QDialog
+        QInputDialog, QDialog, QDoubleSpinBox
     )
     from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
     from PyQt5.QtGui import QIcon, QFont, QPixmap, QTextCursor
@@ -47,7 +47,8 @@ except ImportError:
 
 if PYQT5_AVAILABLE:
     from pypozo import WellManager, WellPlotter, ProjectManager
-    from pypozo.petrophysics import VclCalculator, PorosityCalculator, PetrophysicsCalculator
+    from pypozo.petrophysics import (VclCalculator, PorosityCalculator, PetrophysicsCalculator,
+                                     WaterSaturationCalculator, PermeabilityCalculator, LithologyAnalyzer)
 
 logger = logging.getLogger(__name__)
 
@@ -432,6 +433,68 @@ class PyPozoApp(QMainWindow):
         # Inicializar calculadoras
         self.vcl_calculator = VclCalculator()
         self.porosity_calculator = PorosityCalculator()
+        self.water_saturation_calculator = WaterSaturationCalculator()
+        self.permeability_calculator = PermeabilityCalculator()
+        self.lithology_analyzer = LithologyAnalyzer()
+        
+        # Crear tabs para organizar mejor la interfaz
+        self.petro_tabs = QTabWidget()
+        
+        # Tab 1: VCL y Porosidad (básicos)
+        basics_tab = self.create_basics_petro_tab()
+        self.petro_tabs.addTab(basics_tab, "🏔️ VCL & Porosidad")
+        
+        # Tab 2: Saturación de Agua
+        sw_tab = self.create_water_saturation_tab()
+        self.petro_tabs.addTab(sw_tab, "💧 Saturación Agua")
+        
+        # Tab 3: Permeabilidad
+        perm_tab = self.create_permeability_tab()
+        self.petro_tabs.addTab(perm_tab, "🌊 Permeabilidad")
+        
+        # Tab 4: Análisis Litológico
+        lithology_tab = self.create_lithology_tab()
+        self.petro_tabs.addTab(lithology_tab, "🪨 Litología")
+        
+        layout.addWidget(self.petro_tabs)
+        
+        # Resultados globales
+        results_group = QGroupBox("📊 Resultados Petrofísicos")
+        results_layout = QVBoxLayout(results_group)
+        
+        self.petro_results = QTextEdit()
+        self.petro_results.setMaximumHeight(120)
+        self.petro_results.setReadOnly(True)
+        self.petro_results.setStyleSheet("background-color: #f8f9fa; font-family: 'Courier New'; font-size: 11px;")
+        results_layout.addWidget(self.petro_results)
+        
+        # Botones de resultados globales
+        results_buttons = QHBoxLayout()
+        self.plot_petro_btn = QPushButton("📈 Graficar Resultados")
+        self.plot_petro_btn.clicked.connect(self.plot_petrophysics_results)
+        results_buttons.addWidget(self.plot_petro_btn)
+        
+        self.export_petro_btn = QPushButton("💾 Exportar Cálculos")
+        self.export_petro_btn.clicked.connect(self.export_petrophysics_results)
+        results_buttons.addWidget(self.export_petro_btn)
+        
+        self.comprehensive_analysis_btn = QPushButton("🔬 Análisis Completo")
+        self.comprehensive_analysis_btn.clicked.connect(self.run_comprehensive_analysis)
+        results_buttons.addWidget(self.comprehensive_analysis_btn)
+        
+        results_layout.addLayout(results_buttons)
+        
+        layout.addWidget(results_group)
+        
+        # Inicialmente deshabilitar botones
+        self.update_petrophysics_ui()
+        
+        return tab
+
+    def create_basics_petro_tab(self) -> QWidget:
+        """Crear tab para VCL y Porosidad básica."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
         
         # VCL Section
         vcl_group = QGroupBox("🏔️ Volumen de Arcilla (VCL)")
@@ -535,43 +598,428 @@ class PyPozoApp(QMainWindow):
         self.calc_por_btn.clicked.connect(self.calculate_porosity)
         por_buttons.addWidget(self.calc_por_btn)
         
-        self.analyze_lithology_btn = QPushButton("🪨 Análisis Litológico")
-        self.analyze_lithology_btn.clicked.connect(self.analyze_lithology)
-        por_buttons.addWidget(self.analyze_lithology_btn)
-        
         por_layout.addLayout(por_buttons)
         
         layout.addWidget(por_group)
         
+        return tab
+    
+    def create_water_saturation_tab(self) -> QWidget:
+        """Crear tab para cálculos de saturación de agua."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        # Método de Sw
+        method_group = QGroupBox("💧 Método de Saturación de Agua")
+        method_layout = QVBoxLayout(method_group)
+        
+        # Selector de método
+        method_select_layout = QHBoxLayout()
+        method_select_layout.addWidget(QLabel("Método:"))
+        self.sw_method_combo = QComboBox()
+        self.sw_method_combo.addItems([
+            "archie_simple", "archie_modified", "simandoux", 
+            "waxman_smits", "dual_water", "indonesian"
+        ])
+        self.sw_method_combo.currentTextChanged.connect(self.update_sw_method_info)
+        method_select_layout.addWidget(self.sw_method_combo)
+        
+        self.sw_info_btn = QPushButton("ℹ️ Info")
+        self.sw_info_btn.clicked.connect(self.show_sw_method_details)
+        method_select_layout.addWidget(self.sw_info_btn)
+        
+        method_layout.addLayout(method_select_layout)
+        
+        # Descripción del método
+        self.sw_method_description = QLabel("Archie Simple: Sw = ((a*Rw)/(φ^m * Rt))^(1/n)")
+        self.sw_method_description.setStyleSheet("color: #666; font-style: italic; padding: 5px;")
+        method_layout.addWidget(self.sw_method_description)
+        
+        layout.addWidget(method_group)
+        
+        # Curvas de entrada
+        curves_group = QGroupBox("📊 Curvas de Entrada")
+        curves_layout = QVBoxLayout(curves_group)
+        
+        # Primera fila: RT y Porosidad (siempre necesarios)
+        curves_row1 = QHBoxLayout()
+        curves_row1.addWidget(QLabel("RT (Resistividad):"))
+        self.sw_rt_combo = QComboBox()
+        curves_row1.addWidget(self.sw_rt_combo)
+        
+        curves_row1.addWidget(QLabel("Porosidad:"))
+        self.sw_porosity_combo = QComboBox()
+        curves_row1.addWidget(self.sw_porosity_combo)
+        
+        curves_layout.addLayout(curves_row1)
+        
+        # Segunda fila: VCL (para métodos que lo requieren)
+        curves_row2 = QHBoxLayout()
+        curves_row2.addWidget(QLabel("VCL (opcional):"))
+        self.sw_vcl_combo = QComboBox()
+        curves_row2.addWidget(self.sw_vcl_combo)
+        
+        # Checkbox para usar VCL calculado
+        self.sw_use_calculated_vcl = QCheckBox("Usar VCL calculado")
+        curves_row2.addWidget(self.sw_use_calculated_vcl)
+        
+        curves_layout.addLayout(curves_row2)
+        
+        layout.addWidget(curves_group)
+        
+        # Parámetros del modelo
+        params_group = QGroupBox("⚙️ Parámetros del Modelo")
+        params_layout = QVBoxLayout(params_group)
+        
+        # Parámetros de Archie
+        archie_row1 = QHBoxLayout()
+        archie_row1.addWidget(QLabel("a (tortuosidad):"))
+        self.sw_a_spinbox = QDoubleSpinBox()
+        self.sw_a_spinbox.setRange(0.1, 5.0)
+        self.sw_a_spinbox.setSingleStep(0.1)
+        self.sw_a_spinbox.setValue(1.0)
+        archie_row1.addWidget(self.sw_a_spinbox)
+        
+        archie_row1.addWidget(QLabel("m (cementación):"))
+        self.sw_m_spinbox = QDoubleSpinBox()
+        self.sw_m_spinbox.setRange(1.0, 3.0)
+        self.sw_m_spinbox.setSingleStep(0.1)
+        self.sw_m_spinbox.setValue(2.0)
+        archie_row1.addWidget(self.sw_m_spinbox)
+        
+        params_layout.addLayout(archie_row1)
+        
+        archie_row2 = QHBoxLayout()
+        archie_row2.addWidget(QLabel("n (saturación):"))
+        self.sw_n_spinbox = QDoubleSpinBox()
+        self.sw_n_spinbox.setRange(1.0, 3.0)
+        self.sw_n_spinbox.setSingleStep(0.1)
+        self.sw_n_spinbox.setValue(2.0)
+        archie_row2.addWidget(self.sw_n_spinbox)
+        
+        archie_row2.addWidget(QLabel("Rw (ohm-m):"))
+        self.sw_rw_spinbox = QDoubleSpinBox()
+        self.sw_rw_spinbox.setRange(0.01, 1.0)
+        self.sw_rw_spinbox.setSingleStep(0.01)
+        self.sw_rw_spinbox.setValue(0.05)
+        archie_row2.addWidget(self.sw_rw_spinbox)
+        
+        params_layout.addLayout(archie_row2)
+        
+        # Parámetros adicionales (para métodos específicos)
+        extra_params_row = QHBoxLayout()
+        extra_params_row.addWidget(QLabel("Rsh (ohm-m):"))
+        self.sw_rsh_spinbox = QDoubleSpinBox()
+        self.sw_rsh_spinbox.setRange(0.1, 10.0)
+        self.sw_rsh_spinbox.setSingleStep(0.1)
+        self.sw_rsh_spinbox.setValue(2.0)
+        extra_params_row.addWidget(self.sw_rsh_spinbox)
+        
+        params_layout.addLayout(extra_params_row)
+        
+        layout.addWidget(params_group)
+        
+        # Botones de cálculo
+        buttons_layout = QHBoxLayout()
+        self.calc_sw_btn = QPushButton("🧮 Calcular Sw")
+        self.calc_sw_btn.clicked.connect(self.calculate_water_saturation)
+        buttons_layout.addWidget(self.calc_sw_btn)
+        
+        self.preview_sw_btn = QPushButton("👁️ Vista Previa")
+        self.preview_sw_btn.clicked.connect(self.preview_sw_calculation)
+        buttons_layout.addWidget(self.preview_sw_btn)
+        
+        self.reset_sw_params_btn = QPushButton("🔄 Resetear")
+        self.reset_sw_params_btn.clicked.connect(self.reset_sw_parameters)
+        buttons_layout.addWidget(self.reset_sw_params_btn)
+        
+        layout.addLayout(buttons_layout)
+        
         # Resultados
-        results_group = QGroupBox("📊 Resultados")
+        results_group = QGroupBox("📋 Resultados Sw")
         results_layout = QVBoxLayout(results_group)
         
-        self.petro_results = QTextEdit()
-        self.petro_results.setMaximumHeight(150)
-        self.petro_results.setReadOnly(True)
-        self.petro_results.setStyleSheet("background-color: #f8f9fa; font-family: 'Courier New'; font-size: 11px;")
-        results_layout.addWidget(self.petro_results)
-        
-        # Botones de resultados
-        results_buttons = QHBoxLayout()
-        self.plot_petro_btn = QPushButton("📈 Graficar Resultados")
-        self.plot_petro_btn.clicked.connect(self.plot_petrophysics_results)
-        results_buttons.addWidget(self.plot_petro_btn)
-        
-        self.export_petro_btn = QPushButton("💾 Exportar Cálculos")
-        self.export_petro_btn.clicked.connect(self.export_petrophysics_results)
-        results_buttons.addWidget(self.export_petro_btn)
-        
-        results_layout.addLayout(results_buttons)
+        self.sw_results_text = QTextEdit()
+        self.sw_results_text.setMaximumHeight(100)
+        self.sw_results_text.setReadOnly(True)
+        self.sw_results_text.setStyleSheet("background-color: #f8f9fa; font-family: 'Courier New'; font-size: 10px;")
+        results_layout.addWidget(self.sw_results_text)
         
         layout.addWidget(results_group)
         
-        # Inicialmente deshabilitar botones
-        self.update_petrophysics_ui()
+        return tab
+    
+    def create_permeability_tab(self) -> QWidget:
+        """Crear tab para cálculos de permeabilidad."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        # Método de permeabilidad
+        method_group = QGroupBox("🌊 Método de Permeabilidad")
+        method_layout = QVBoxLayout(method_group)
+        
+        method_select_layout = QHBoxLayout()
+        method_select_layout.addWidget(QLabel("Método:"))
+        self.perm_method_combo = QComboBox()
+        self.perm_method_combo.addItems([
+            "timur", "kozeny_carman", "wyllie_rose", "coates_denoo", "empirical"
+        ])
+        self.perm_method_combo.currentTextChanged.connect(self.update_perm_method_info)
+        method_select_layout.addWidget(self.perm_method_combo)
+        
+        self.perm_info_btn = QPushButton("ℹ️ Info")
+        self.perm_info_btn.clicked.connect(self.show_perm_method_details)
+        method_select_layout.addWidget(self.perm_info_btn)
+        
+        method_layout.addLayout(method_select_layout)
+        
+        # Descripción del método
+        self.perm_method_description = QLabel("Timur: K = 0.136 * (φ/Swi)^4.4")
+        self.perm_method_description.setStyleSheet("color: #666; font-style: italic; padding: 5px;")
+        method_layout.addWidget(self.perm_method_description)
+        
+        layout.addWidget(method_group)
+        
+        # Curvas de entrada
+        curves_group = QGroupBox("📊 Curvas de Entrada")
+        curves_layout = QVBoxLayout(curves_group)
+        
+        curves_row1 = QHBoxLayout()
+        curves_row1.addWidget(QLabel("Porosidad:"))
+        self.perm_porosity_combo = QComboBox()
+        curves_row1.addWidget(self.perm_porosity_combo)
+        
+        curves_row1.addWidget(QLabel("Sw:"))
+        self.perm_sw_combo = QComboBox()
+        curves_row1.addWidget(self.perm_sw_combo)
+        
+        curves_layout.addLayout(curves_row1)
+        
+        # Opciones para usar datos calculados
+        calc_options_row = QHBoxLayout()
+        self.perm_use_calc_porosity = QCheckBox("Usar porosidad calculada")
+        calc_options_row.addWidget(self.perm_use_calc_porosity)
+        
+        self.perm_use_calc_sw = QCheckBox("Usar Sw calculada")
+        calc_options_row.addWidget(self.perm_use_calc_sw)
+        
+        curves_layout.addLayout(calc_options_row)
+        
+        layout.addWidget(curves_group)
+        
+        # Parámetros del modelo
+        params_group = QGroupBox("⚙️ Parámetros del Modelo")
+        params_layout = QVBoxLayout(params_group)
+        
+        params_row1 = QHBoxLayout()
+        params_row1.addWidget(QLabel("Swi (irreducible):"))
+        self.perm_swi_spinbox = QDoubleSpinBox()
+        self.perm_swi_spinbox.setRange(0.1, 0.8)
+        self.perm_swi_spinbox.setSingleStep(0.05)
+        self.perm_swi_spinbox.setValue(0.25)
+        params_row1.addWidget(self.perm_swi_spinbox)
+        
+        params_row1.addWidget(QLabel("Factor C:"))
+        self.perm_c_factor_spinbox = QDoubleSpinBox()
+        self.perm_c_factor_spinbox.setRange(0.01, 10.0)
+        self.perm_c_factor_spinbox.setSingleStep(0.01)
+        self.perm_c_factor_spinbox.setValue(0.136)  # Timur por defecto
+        params_row1.addWidget(self.perm_c_factor_spinbox)
+        
+        params_layout.addLayout(params_row1)
+        
+        params_row2 = QHBoxLayout()
+        params_row2.addWidget(QLabel("Exponente φ:"))
+        self.perm_phi_exp_spinbox = QDoubleSpinBox()
+        self.perm_phi_exp_spinbox.setRange(1.0, 8.0)
+        self.perm_phi_exp_spinbox.setSingleStep(0.1)
+        self.perm_phi_exp_spinbox.setValue(4.4)
+        params_row2.addWidget(self.perm_phi_exp_spinbox)
+        
+        params_row2.addWidget(QLabel("Exponente Sw:"))
+        self.perm_sw_exp_spinbox = QDoubleSpinBox()
+        self.perm_sw_exp_spinbox.setRange(-8.0, -1.0)
+        self.perm_sw_exp_spinbox.setSingleStep(0.1)
+        self.perm_sw_exp_spinbox.setValue(-4.4)
+        params_row2.addWidget(self.perm_sw_exp_spinbox)
+        
+        params_layout.addLayout(params_row2)
+        
+        layout.addWidget(params_group)
+        
+        # Botones de cálculo
+        buttons_layout = QHBoxLayout()
+        self.calc_perm_btn = QPushButton("🧮 Calcular Permeabilidad")
+        self.calc_perm_btn.clicked.connect(self.calculate_permeability)
+        buttons_layout.addWidget(self.calc_perm_btn)
+        
+        self.classify_perm_btn = QPushButton("📊 Clasificar")
+        self.classify_perm_btn.clicked.connect(self.classify_permeability)
+        buttons_layout.addWidget(self.classify_perm_btn)
+        
+        self.reset_perm_params_btn = QPushButton("🔄 Resetear")
+        self.reset_perm_params_btn.clicked.connect(self.reset_perm_parameters)
+        buttons_layout.addWidget(self.reset_perm_params_btn)
+        
+        layout.addLayout(buttons_layout)
+        
+        # Resultados
+        results_group = QGroupBox("📋 Resultados Permeabilidad")
+        results_layout = QVBoxLayout(results_group)
+        
+        self.perm_results_text = QTextEdit()
+        self.perm_results_text.setMaximumHeight(100)
+        self.perm_results_text.setReadOnly(True)
+        self.perm_results_text.setStyleSheet("background-color: #f8f9fa; font-family: 'Courier New'; font-size: 10px;")
+        results_layout.addWidget(self.perm_results_text)
+        
+        layout.addWidget(results_group)
         
         return tab
-
+    
+    def create_lithology_tab(self) -> QWidget:
+        """Crear tab para análisis litológico."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        # Tipo de análisis
+        analysis_group = QGroupBox("🪨 Tipo de Análisis Litológico")
+        analysis_layout = QVBoxLayout(analysis_group)
+        
+        analysis_select_layout = QHBoxLayout()
+        analysis_select_layout.addWidget(QLabel("Análisis:"))
+        self.lithology_analysis_combo = QComboBox()
+        self.lithology_analysis_combo.addItems([
+            "crossplots", "facies_classification", "mineral_identification", 
+            "reservoir_quality", "depositional_environment"
+        ])
+        self.lithology_analysis_combo.currentTextChanged.connect(self.update_lithology_analysis_info)
+        analysis_select_layout.addWidget(self.lithology_analysis_combo)
+        
+        self.lithology_info_btn = QPushButton("ℹ️ Info")
+        self.lithology_info_btn.clicked.connect(self.show_lithology_analysis_details)
+        analysis_select_layout.addWidget(self.lithology_info_btn)
+        
+        analysis_layout.addLayout(analysis_select_layout)
+        
+        # Descripción del análisis
+        self.lithology_analysis_description = QLabel("Crossplots: Análisis de correlaciones entre propiedades petrofísicas")
+        self.lithology_analysis_description.setStyleSheet("color: #666; font-style: italic; padding: 5px;")
+        analysis_layout.addWidget(self.lithology_analysis_description)
+        
+        layout.addWidget(analysis_group)
+        
+        # Curvas requeridas
+        curves_group = QGroupBox("📊 Curvas para Análisis")
+        curves_layout = QVBoxLayout(curves_group)
+        
+        # Curvas básicas
+        basic_curves_row = QHBoxLayout()
+        basic_curves_row.addWidget(QLabel("GR:"))
+        self.lith_gr_combo = QComboBox()
+        basic_curves_row.addWidget(self.lith_gr_combo)
+        
+        basic_curves_row.addWidget(QLabel("RHOB:"))
+        self.lith_rhob_combo = QComboBox()
+        basic_curves_row.addWidget(self.lith_rhob_combo)
+        
+        basic_curves_row.addWidget(QLabel("NPHI:"))
+        self.lith_nphi_combo = QComboBox()
+        basic_curves_row.addWidget(self.lith_nphi_combo)
+        
+        curves_layout.addLayout(basic_curves_row)
+        
+        # Curvas adicionales
+        extra_curves_row = QHBoxLayout()
+        extra_curves_row.addWidget(QLabel("PEF:"))
+        self.lith_pef_combo = QComboBox()
+        extra_curves_row.addWidget(self.lith_pef_combo)
+        
+        extra_curves_row.addWidget(QLabel("RT:"))
+        self.lith_rt_combo = QComboBox()
+        extra_curves_row.addWidget(self.lith_rt_combo)
+        
+        curves_layout.addLayout(extra_curves_row)
+        
+        # Opciones para usar datos calculados
+        calc_options_row = QHBoxLayout()
+        self.lith_use_calc_porosity = QCheckBox("Usar porosidad calculada")
+        calc_options_row.addWidget(self.lith_use_calc_porosity)
+        
+        self.lith_use_calc_vcl = QCheckBox("Usar VCL calculado")
+        calc_options_row.addWidget(self.lith_use_calc_vcl)
+        
+        curves_layout.addLayout(calc_options_row)
+        
+        layout.addWidget(curves_group)
+        
+        # Parámetros del análisis
+        params_group = QGroupBox("⚙️ Parámetros del Análisis")
+        params_layout = QVBoxLayout(params_group)
+        
+        # Cutoffs y rangos
+        cutoffs_row1 = QHBoxLayout()
+        cutoffs_row1.addWidget(QLabel("VCL cutoff:"))
+        self.lith_vcl_cutoff_spinbox = QDoubleSpinBox()
+        self.lith_vcl_cutoff_spinbox.setRange(0.1, 0.9)
+        self.lith_vcl_cutoff_spinbox.setSingleStep(0.05)
+        self.lith_vcl_cutoff_spinbox.setValue(0.5)
+        cutoffs_row1.addWidget(self.lith_vcl_cutoff_spinbox)
+        
+        cutoffs_row1.addWidget(QLabel("φ cutoff:"))
+        self.lith_porosity_cutoff_spinbox = QDoubleSpinBox()
+        self.lith_porosity_cutoff_spinbox.setRange(0.05, 0.3)
+        self.lith_porosity_cutoff_spinbox.setSingleStep(0.01)
+        self.lith_porosity_cutoff_spinbox.setValue(0.1)
+        cutoffs_row1.addWidget(self.lith_porosity_cutoff_spinbox)
+        
+        params_layout.addLayout(cutoffs_row1)
+        
+        # Configuración de clustering
+        cluster_row = QHBoxLayout()
+        cluster_row.addWidget(QLabel("N° Facies:"))
+        self.lith_n_facies_spinbox = QSpinBox()
+        self.lith_n_facies_spinbox.setRange(2, 8)
+        self.lith_n_facies_spinbox.setValue(4)
+        cluster_row.addWidget(self.lith_n_facies_spinbox)
+        
+        self.lith_auto_facies = QCheckBox("Detectar automáticamente")
+        cluster_row.addWidget(self.lith_auto_facies)
+        
+        params_layout.addLayout(cluster_row)
+        
+        layout.addWidget(params_group)
+        
+        # Botones de análisis
+        buttons_layout = QHBoxLayout()
+        self.analyze_lithology_btn = QPushButton("🔬 Analizar Litología")
+        self.analyze_lithology_btn.clicked.connect(self.analyze_lithology)
+        buttons_layout.addWidget(self.analyze_lithology_btn)
+        
+        self.generate_crossplots_btn = QPushButton("📊 Crossplots")
+        self.generate_crossplots_btn.clicked.connect(self.generate_lithology_crossplots)
+        buttons_layout.addWidget(self.generate_crossplots_btn)
+        
+        self.classify_facies_btn = QPushButton("🏷️ Clasificar Facies")
+        self.classify_facies_btn.clicked.connect(self.classify_facies)
+        buttons_layout.addWidget(self.classify_facies_btn)
+        
+        layout.addLayout(buttons_layout)
+        
+        # Resultados
+        results_group = QGroupBox("📋 Resultados Litológicos")
+        results_layout = QVBoxLayout(results_group)
+        
+        self.lithology_results_text = QTextEdit()
+        self.lithology_results_text.setMaximumHeight(100)
+        self.lithology_results_text.setReadOnly(True)
+        self.lithology_results_text.setStyleSheet("background-color: #f8f9fa; font-family: 'Courier New'; font-size: 10px;")
+        results_layout.addWidget(self.lithology_results_text)
+        
+        layout.addWidget(results_group)
+        
+        return tab
+    
     def create_menus(self):
         """Crear menús."""
         menubar = self.menuBar()
@@ -1379,6 +1827,10 @@ class PyPozoApp(QMainWindow):
             ax.legend(loc='best')
             
             self.figure.tight_layout()
+           
+           
+           
+
             self.canvas.draw()
             
             self.log_activity(f"✅ Comparación completada")
@@ -1976,6 +2428,11 @@ Fecha: Julio 2025</p>
             self.analyze_lithology_btn.setEnabled(False)
             self.plot_petro_btn.setEnabled(False)
             self.export_petro_btn.setEnabled(False)
+            # Nuevas pestañas
+            if hasattr(self, 'calc_sw_btn'):
+                self.calc_sw_btn.setEnabled(False)
+            if hasattr(self, 'calc_perm_btn'):
+                self.calc_perm_btn.setEnabled(False)
             return
         
         # Habilitar controles
@@ -1984,6 +2441,11 @@ Fecha: Julio 2025</p>
         self.analyze_lithology_btn.setEnabled(True)
         self.plot_petro_btn.setEnabled(True)
         self.export_petro_btn.setEnabled(True)
+        # Nuevas pestañas
+        if hasattr(self, 'calc_sw_btn'):
+            self.calc_sw_btn.setEnabled(True)
+        if hasattr(self, 'calc_perm_btn'):
+            self.calc_perm_btn.setEnabled(True)
         
         try:
             # Actualizar combos de curvas - with error handling
@@ -2018,11 +2480,52 @@ Fecha: Julio 2025</p>
             self.por_rhob_combo.addItems(rhob_curves)
             self.por_nphi_combo.addItems(nphi_curves)
             
+            # Actualizar combos de saturación de agua
+            if hasattr(self, 'sw_rt_combo'):
+                self.sw_rt_combo.clear()
+                self.sw_porosity_combo.clear()
+                self.sw_vcl_combo.clear()
+                
+                rt_curves = [c for c in curves if any(keyword in c.upper() for keyword in ['RT', 'RES', 'ILD', 'LLD'])]
+                porosity_curves = [c for c in curves if any(keyword in c.upper() for keyword in ['PHIE', 'NPHI', 'RHOB'])]
+                vcl_curves = [c for c in curves if any(keyword in c.upper() for keyword in ['VCL', 'VSH', 'GR'])]
+                
+                self.sw_rt_combo.addItems(rt_curves)
+                self.sw_porosity_combo.addItems(porosity_curves)
+                self.sw_vcl_combo.addItems([''] + vcl_curves)  # Opcional
+            
+            # Actualizar combos de permeabilidad
+            if hasattr(self, 'perm_porosity_combo'):
+                self.perm_porosity_combo.clear()
+                self.perm_sw_combo.clear()
+                
+                porosity_curves = [c for c in curves if any(keyword in c.upper() for keyword in ['PHIE', 'NPHI', 'RHOB'])]
+                sw_curves = [c for c in curves if 'SW' in c.upper()]
+                
+                self.perm_porosity_combo.addItems(porosity_curves)
+                self.perm_sw_combo.addItems([''] + sw_curves)  # Opcional
+            
+            # Actualizar combos de litología
+            if hasattr(self, 'lith_gr_combo'):
+                self.lith_gr_combo.clear()
+                self.lith_rhob_combo.clear()
+                self.lith_nphi_combo.clear()
+                self.lith_pef_combo.clear()
+                self.lith_rt_combo.clear()
+                
+                pef_curves = [c for c in curves if 'PEF' in c.upper()]
+                
+                self.lith_gr_combo.addItems([''] + gr_curves)
+                self.lith_rhob_combo.addItems([''] + rhob_curves)
+                self.lith_nphi_combo.addItems([''] + nphi_curves)
+                self.lith_pef_combo.addItems([''] + pef_curves)
+                self.lith_rt_combo.addItems([''] + rt_curves)
+            
             self.log_activity("✅ UI de petrofísica actualizada")
             
         except Exception as e:
             self.log_activity(f"❌ Error actualizando UI de petrofísica: {str(e)}")
-            # En caso de error, al menos deshabilitar los combos
+            # En caso de error, al menos deshabilitar los combos básicos
             self.vcl_gr_combo.clear()
             self.por_rhob_combo.clear()
             self.por_nphi_combo.clear()
@@ -2306,6 +2809,10 @@ Fecha: Julio 2025</p>
             self.plot_all_btn.setEnabled(False)
             self.save_plot_btn.setEnabled(False)
             
+            # Limpiar gráfico
+            self.figure.clear()
+            self.canvas.draw()
+            
             self.log_activity(f"🗃️ Todos los pozos removidos")
     
     def _cleanup_thread(self, thread):
@@ -2383,35 +2890,141 @@ Fecha: Julio 2025</p>
             self.log_activity(f"❌ Error guardando pozo fusionado: {e}")
             logger.error(f"Error en _prompt_save_after_merge: {e}")
 
-def main():
-    """Función principal para ejecutar la aplicación."""
-    try:
-        # Verificar que PyQt5 esté disponible
-        if not PYQT5_AVAILABLE:
-            print("❌ PyQt5 no está disponible. Instale PyQt5 para usar la GUI:")
-            print("   pip install PyQt5")
-            return 1
-        
-        # Crear aplicación Qt
-        app = QApplication(sys.argv)
-        app.setApplicationName("PyPozo App")
-        app.setApplicationVersion("2.0.0")
-        
-        # Configurar estilo de la aplicación
-        app.setStyle('Fusion')
-        
-        # Crear ventana principal
-        window = PyPozoApp()
-        window.show()
-        
-        # Ejecutar aplicación
-        return app.exec_()
-        
-    except Exception as e:
-        print(f"❌ Error iniciando la aplicación: {e}")
-        traceback.print_exc()
-        return 1
+# ==================== MÉTODOS PLACEHOLDERS ADICIONALES ====================
+
+    def calculate_water_saturation(self):
+        """Calcular saturación de agua (placeholder)."""
+        if not self.current_well:
+            QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
+            return
+        self.log_activity("💧 Función de saturación de agua en desarrollo")
+        QMessageBox.information(self, "Desarrollo", "Función de saturación de agua en desarrollo")
+    
+    def calculate_permeability(self):
+        """Calcular permeabilidad (placeholder)."""
+        if not self.current_well:
+            QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
+            return
+        self.log_activity("🌊 Función de permeabilidad en desarrollo")
+        QMessageBox.information(self, "Desarrollo", "Función de permeabilidad en desarrollo")
+    
+    def analyze_lithology(self):
+        """Analizar litología (placeholder)."""
+        if not self.current_well:
+            QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
+            return
+        self.log_activity("🪨 Función de análisis litológico en desarrollo")
+        QMessageBox.information(self, "Desarrollo", "Función de análisis litológico en desarrollo")
+    
+    # Métodos auxiliares para las nuevas pestañas
+    def update_sw_method_info(self):
+        """Actualizar descripción del método de saturación de agua."""
+        method = self.sw_method_combo.currentText() if hasattr(self, 'sw_method_combo') else "archie_simple"
+        descriptions = {
+            'archie_simple': 'Archie Simple: Sw = ((a*Rw)/(φ^m * Rt))^(1/n)',
+            'archie_modified': 'Archie con Vclay: Sw = ((a*Rw)/(φe^m * Rt))^(1/n)',
+            'simandoux': 'Simandoux: Para formaciones arcillosas (modelo paralelo)',
+            'waxman_smits': 'Waxman-Smits: Para formaciones con arcillas conductivas',
+            'dual_water': 'Dual Water: Modelo de dos aguas (libre y ligada)',
+            'indonesian': 'Ecuación Indonesa: Para formaciones fracturadas'
+        }
+        if hasattr(self, 'sw_method_description'):
+            self.sw_method_description.setText(descriptions.get(method, "Método no implementado"))
+    
+    def show_sw_method_details(self):
+        """Mostrar detalles del método de saturación de agua."""
+        QMessageBox.information(self, "Info Sw", "Detalles de métodos de saturación de agua en desarrollo")
+    
+    def preview_sw_calculation(self):
+        """Vista previa del cálculo de Sw."""
+        QMessageBox.information(self, "Vista Previa", "Vista previa de Sw en desarrollo")
+    
+    def reset_sw_parameters(self):
+        """Resetear parámetros de Sw a valores por defecto."""
+        if hasattr(self, 'sw_a_spinbox'):
+            self.sw_a_spinbox.setValue(1.0)
+        if hasattr(self, 'sw_m_spinbox'):
+            self.sw_m_spinbox.setValue(2.0)
+        if hasattr(self, 'sw_n_spinbox'):
+            self.sw_n_spinbox.setValue(2.0)
+        if hasattr(self, 'sw_rw_spinbox'):
+            self.sw_rw_spinbox.setValue(0.05)
+        if hasattr(self, 'sw_rsh_spinbox'):
+            self.sw_rsh_spinbox.setValue(2.0)
+        self.log_activity("🔄 Parámetros Sw reseteados")
+    
+    def update_perm_method_info(self):
+        """Actualizar descripción del método de permeabilidad."""
+        method = self.perm_method_combo.currentText() if hasattr(self, 'perm_method_combo') else "timur"
+        descriptions = {
+            'timur': 'Timur: K = C * (φ/Swi)^n',
+            'kozeny_carman': 'Kozeny-Carman: K = C * φ³/(1-φ)²',
+            'wyllie_rose': 'Wyllie & Rose: K = C * φ⁶/Swi²',
+            'coates_denoo': 'Coates & Denoo: K = C * (φ⁴/Swi²)',
+            'empirical': 'Empírico: K = C * φᵃ * Swᵇ'
+        }
+        if hasattr(self, 'perm_method_description'):
+            self.perm_method_description.setText(descriptions.get(method, "Método no implementado"))
+    
+    def show_perm_method_details(self):
+        """Mostrar detalles del método de permeabilidad."""
+        QMessageBox.information(self, "Info Permeabilidad", "Detalles de métodos de permeabilidad en desarrollo")
+    
+    def classify_permeability(self):
+        """Clasificar valores de permeabilidad."""
+        QMessageBox.information(self, "Clasificación", "Clasificación de permeabilidad en desarrollo")
+    
+    def reset_perm_parameters(self):
+        """Resetear parámetros de permeabilidad."""
+        if hasattr(self, 'perm_swi_spinbox'):
+            self.perm_swi_spinbox.setValue(0.25)
+        if hasattr(self, 'perm_c_factor_spinbox'):
+            self.perm_c_factor_spinbox.setValue(0.136)
+        if hasattr(self, 'perm_phi_exp_spinbox'):
+            self.perm_phi_exp_spinbox.setValue(4.4)
+        if hasattr(self, 'perm_sw_exp_spinbox'):
+            self.perm_sw_exp_spinbox.setValue(-4.4)
+        self.log_activity("🔄 Parámetros permeabilidad reseteados")
+    
+    def update_lithology_analysis_info(self):
+        """Actualizar descripción del análisis litológico."""
+        analysis = self.lithology_analysis_combo.currentText() if hasattr(self, 'lithology_analysis_combo') else "crossplots"
+        descriptions = {
+            'crossplots': 'Crossplots: Análisis de correlaciones entre propiedades petrofísicas',
+            'facies_classification': 'Clasificación de Facies: Agrupamiento automático por propiedades',
+            'mineral_identification': 'Identificación Mineral: Interpretación basada en registros',
+            'reservoir_quality': 'Calidad de Reservorio: Evaluación integrada de propiedades',
+            'depositional_environment': 'Ambiente Deposicional: Interpretación sedimentológica'
+        }
+        if hasattr(self, 'lithology_analysis_description'):
+            self.lithology_analysis_description.setText(descriptions.get(analysis, "Análisis no implementado"))
+    
+    def show_lithology_analysis_details(self):
+        """Mostrar detalles del análisis litológico."""
+        QMessageBox.information(self, "Info Litología", "Detalles de análisis litológico en desarrollo")
+    
+    def generate_lithology_crossplots(self):
+        """Generar crossplots litológicos."""
+        QMessageBox.information(self, "Crossplots", "Generación de crossplots en desarrollo")
+    
+    def classify_facies(self):
+        """Clasificar facies litológicas."""
+        QMessageBox.information(self, "Facies", "Clasificación de facies en desarrollo")
+    
+    def run_comprehensive_analysis(self):
+        """Ejecutar análisis petrofísico completo."""
+        if not self.current_well:
+            QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
+            return
+        self.log_activity("� Función de análisis completo en desarrollo")
+        QMessageBox.information(self, "Desarrollo", "Función de análisis completo en desarrollo")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if not PYQT5_AVAILABLE:
+        print("❌ PyQt5 no está disponible. Instale PyQt5 para usar la GUI: pip install PyQt5")
+        sys.exit(1)
+    app = QApplication(sys.argv)
+    window = PyPozoApp()
+    window.show()
+    sys.exit(app.exec_())
