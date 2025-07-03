@@ -89,6 +89,9 @@ class PyPozoApp(QMainWindow):
         self.plotter = WellPlotter()
         self.project_manager = ProjectManager()
         
+        # Lista para rastrear threads activos
+        self.active_threads: List[QThread] = []
+        
         self.init_ui()
         self.setup_logging()
         
@@ -709,6 +712,31 @@ class PyPozoApp(QMainWindow):
             ]
         )
     
+    def closeEvent(self, event):
+        """Manejar el cierre de la aplicación correctamente."""
+        try:
+            # Terminar todos los threads activos
+            for thread in self.active_threads:
+                if thread.isRunning():
+                    logger.info(f"🔄 Terminando thread activo...")
+                    thread.quit()
+                    thread.wait(3000)  # Esperar máximo 3 segundos
+                    
+                    if thread.isRunning():
+                        logger.warning(f"⚠️ Forzando terminación de thread...")
+                        thread.terminate()
+                        thread.wait(1000)
+            
+            # Limpiar la lista de threads
+            self.active_threads.clear()
+            
+            logger.info("👋 PyPozo App cerrando correctamente")
+            event.accept()
+            
+        except Exception as e:
+            logger.error(f"❌ Error cerrando aplicación: {e}")
+            event.accept()  # Cerrar de todas formas
+    
     def log_activity(self, message: str):
         """Agregar mensaje al log de actividades."""
         from datetime import datetime
@@ -752,11 +780,18 @@ class PyPozoApp(QMainWindow):
         self.progress_bar.setVisible(True)
         
         # Usar thread para no bloquear la GUI
-        self.load_thread = WellLoadThread(file_path)
-        self.load_thread.well_loaded.connect(self.on_well_loaded)
-        self.load_thread.error_occurred.connect(self.on_load_error)
-        self.load_thread.progress_updated.connect(self.progress_bar.setValue)
-        self.load_thread.start()
+        load_thread = WellLoadThread(file_path)
+        load_thread.well_loaded.connect(self.on_well_loaded)
+        load_thread.error_occurred.connect(self.on_load_error)
+        load_thread.progress_updated.connect(self.progress_bar.setValue)
+        
+        # Agregar thread a la lista de seguimiento
+        self.active_threads.append(load_thread)
+        
+        # Conectar señal de terminación para limpieza automática
+        load_thread.finished.connect(lambda: self._cleanup_thread(load_thread))
+        
+        load_thread.start()
     
     def on_well_loaded(self, well: WellManager, filename: str):
         """Manejar pozo cargado exitosamente."""
@@ -1320,6 +1355,19 @@ class PyPozoApp(QMainWindow):
                 
                 if curve_data is not None:
                     color = colors[i % len(colors)]
+                    depth = curve_data.index
+                    values = curve_data.values
+                    
+                    # Filtrar valores válidos
+                    valid_mask = np.isfinite(values) & np.isfinite(depth)
+                    if np.any(valid_mask):
+                        ax.plot(values[valid_mask], depth[valid_mask], 
+                               linewidth=1.5, color=color, label=well_name, alpha=0.8)
+                    else:
+                        self.log_activity(f"⚠️ {well_name}: No hay datos válidos para {curve}")
+                else:
+                    self.log_activity(f"⚠️ {well_name}: Curva {curve} no encontrada")
+                    color = colors[i % len(colors)]
                     ax.plot(curve_data.values, curve_data.index,
                            color=color, linewidth=1.5, label=well_name, alpha=0.8)
             
@@ -1428,10 +1476,17 @@ class PyPozoApp(QMainWindow):
             try:
                 if file_path.endswith('.las'):
                     # Exportar como LAS
-                    self.current_well.export_to_las(file_path)
+                    success = self.current_well.export_to_las(file_path)
+                    if not success:
+                        raise Exception("La exportación a LAS falló")
                 elif file_path.endswith('.csv'):
                     # Exportar como CSV
                     self.current_well.data.to_csv(file_path, index=True)
+                else:
+                    # Por defecto, intentar LAS
+                    success = self.current_well.export_to_las(file_path)
+                    if not success:
+                        raise Exception("La exportación a LAS falló")
                 
                 self.log_activity(f"📤 Pozo exportado: {Path(file_path).name}")
                 QMessageBox.information(self, "Éxito", f"Pozo exportado a:\n{file_path}")
@@ -2068,7 +2123,7 @@ Fecha: Julio 2025</p>
             self.log_activity(f"🗃️ Todos los pozos eliminados")
     
     def merge_selected_wells(self):
-        """Fusionar pozos seleccionados."""
+        """Fusionar pozos seleccionados utilizando fusión real de datos."""
         selected_wells = [item.text() for item in self.compare_list.selectedItems()]
         
         if len(selected_wells) < 2:
@@ -2093,14 +2148,27 @@ Fecha: Julio 2025</p>
             
             self.log_activity(f"🔗 Iniciando fusión de {len(selected_wells)} pozos...")
             
-            # Obtener el primer pozo como base
-            base_well = self.wells[selected_wells[0]]
+            # Obtener la lista de pozos a fusionar
+            wells_to_merge = []
+            for well_name in selected_wells:
+                if well_name in self.wells:
+                    wells_to_merge.append(self.wells[well_name])
             
-            # Simular fusión (en una implementación real, usarías el ProjectManager)
-            # Por ahora, creamos una copia del primer pozo
-            merged_well = base_well  # Esto debería ser una fusión real
+            if len(wells_to_merge) < 2:
+                QMessageBox.warning(self, "Error", "No se pudieron obtener todos los pozos seleccionados.")
+                return
             
-            # Agregar pozo fusionado
+            self.log_activity(f"📊 Pozos a fusionar: {[w.name for w in wells_to_merge]}")
+            
+            # Realizar la fusión real usando el método de WellDataFrame
+            from src.pypozo.core.well import WellDataFrame
+            merged_well = WellDataFrame.merge_wells(wells_to_merge, merged_name)
+            
+            if merged_well is None:
+                QMessageBox.critical(self, "Error", "Error durante la fusión de pozos.")
+                return
+            
+            # Agregar el pozo fusionado al diccionario
             self.wells[merged_name] = merged_well
             
             # Agregar al árbol
@@ -2108,28 +2176,212 @@ Fecha: Julio 2025</p>
             item.setText(0, merged_name)
             item.setData(0, Qt.UserRole, merged_name)
             
-            # Actualizar UI
+            # Actualizar listas
             self.update_wells_count()
             self.update_comparison_list()
             
-            self.log_activity(f"✅ Fusión completada: {merged_name}")
-            QMessageBox.information(self, "Éxito", f"Pozos fusionados exitosamente como '{merged_name}'")
+            # Mostrar información de la fusión
+            depth_range = merged_well.depth_range
+            self.log_activity(f"✅ Pozos fusionados exitosamente:")
+            self.log_activity(f"   📋 Nombre: {merged_name}")
+            self.log_activity(f"   📊 Curvas: {len(merged_well.curves)}")
+            self.log_activity(f"   🎯 Rango: {depth_range[0]:.1f}-{depth_range[1]:.1f}m")
+            
+            # Preguntar si desea guardar el pozo fusionado
+            save_reply = QMessageBox.question(
+                self, "Fusión Exitosa",
+                f"Pozos fusionados exitosamente:\n\n"
+                f"📋 Nombre: {merged_name}\n"
+                f"📊 Curvas: {len(merged_well.curves)}\n"
+                f"🎯 Rango: {depth_range[0]:.1f}-{depth_range[1]:.1f}m\n\n"
+                f"¿Desea guardar el pozo fusionado como archivo LAS?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            
+            if save_reply == QMessageBox.Yes:
+                # Seleccionar archivo de salida
+                output_file, _ = QFileDialog.getSaveFileName(
+                    self,
+                    "Guardar Pozo Fusionado",
+                    f"{merged_name}.las",
+                    "Archivos LAS (*.las);;Todos los archivos (*)"
+                )
+                
+                if output_file:
+                    success = merged_well.export_to_las(output_file)
+                    if success:
+                        self.log_activity(f"💾 Pozo fusionado guardado en: {output_file}")
+                        QMessageBox.information(
+                            self,
+                            "✅ Guardado",
+                            f"El pozo fusionado se guardó exitosamente en:\n{output_file}"
+                        )
+                    else:
+                        self.log_activity(f"❌ Error guardando pozo fusionado")
+                        QMessageBox.warning(
+                            self, "Error de Guardado",
+                            "No se pudo guardar el pozo fusionado.\nRevisar log para más detalles."
+                        )
+            else:
+                QMessageBox.information(
+                    self, "Fusión Completada",
+                    f"Pozo fusionado creado: {merged_name}\n\n"
+                    f"Puede exportarlo posteriormente usando:\n"
+                    f"Menú → Archivo → Exportar Datos"
+                )
             
         except Exception as e:
-            self.log_activity(f"❌ Error en fusión: {str(e)}")
+            self.log_activity(f"❌ Error fusionando pozos: {str(e)}")
             QMessageBox.critical(self, "Error", f"Error fusionando pozos:\n{str(e)}")
     
-    def _merge_duplicate_wells(self, well_name: str, new_well):
-        """Fusionar pozo duplicado automáticamente."""
+    def remove_well(self):
+        """Remover pozo seleccionado."""
+        if not self.current_well_name:
+            return
+        
+        reply = QMessageBox.question(
+            self, "Confirmar Eliminación",
+            f"¿Está seguro de que desea remover el pozo '{self.current_well_name}'?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            # Remover del diccionario
+            del self.wells[self.current_well_name]
+            
+            # Remover del árbol
+            item = self.wells_tree.currentItem()
+            if item:
+                self.wells_tree.takeTopLevelItem(self.wells_tree.indexOfTopLevelItem(item))
+            
+            # Limpiar selección actual
+            self.current_well = None
+            self.current_well_name = ""
+            
+            # Actualizar UI
+            self.update_wells_count()
+            self.update_comparison_list()
+            self.props_text.clear()
+            self.curves_list.clear()
+            self.current_well_label.setText("Seleccione un pozo")
+            
+            # Deshabilitar botones
+            self.remove_well_btn.setEnabled(False)
+            self.plot_btn.setEnabled(False)
+            self.plot_together_btn.setEnabled(False)
+            self.plot_all_btn.setEnabled(False)
+            self.save_plot_btn.setEnabled(False)
+            
+            self.log_activity(f"🗑️ Pozo removido: {self.current_well_name}")
+    
+    def clear_all_wells(self):
+        """Limpiar todos los pozos."""
+        if not self.wells:
+            return
+        
+        reply = QMessageBox.question(
+            self, "Confirmar Limpieza",
+            f"¿Está seguro de que desea remover todos los pozos ({len(self.wells)})?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            self.wells.clear()
+            self.wells_tree.clear()
+            self.current_well = None
+            self.current_well_name = ""
+            
+            # Actualizar UI
+            self.update_wells_count()
+            self.update_comparison_list()
+            self.props_text.clear()
+            self.curves_list.clear()
+            self.current_well_label.setText("Seleccione un pozo")
+            
+            # Deshabilitar botones
+            self.remove_well_btn.setEnabled(False)
+            self.plot_btn.setEnabled(False)
+            self.plot_together_btn.setEnabled(False)
+            self.plot_all_btn.setEnabled(False)
+            self.save_plot_btn.setEnabled(False)
+            
+            self.log_activity(f"🗃️ Todos los pozos removidos")
+    
+    def _cleanup_thread(self, thread):
+        """Limpiar thread terminado de la lista de seguimiento."""
         try:
-            existing_well = self.wells[well_name]
-            # En una implementación real, aquí fusionarías los datos
-            # Por ahora, mantenemos el existente
-            self.log_activity(f"🔄 Pozo duplicado fusionado automáticamente: {well_name}")
-            QMessageBox.information(self, "Fusión Automática", f"El pozo '{well_name}' fue fusionado automáticamente")
+            if thread in self.active_threads:
+                self.active_threads.remove(thread)
+                logger.info(f"🧹 Thread limpiado de la lista de seguimiento")
         except Exception as e:
-            self.log_activity(f"❌ Error en fusión automática: {str(e)}")
-
+            logger.warning(f"⚠️ Error limpiando thread: {e}")
+    
+    def _merge_duplicate_wells(self, existing_name: str, new_well: WellManager):
+        """Fusionar pozo duplicado con el existente."""
+        try:
+            existing_well = self.wells[existing_name]
+            
+            # Usar la lógica de fusión real
+            self.log_activity(f"🔄 Fusionando datos de {existing_name}...")
+            
+            # Fusionar los pozos usando la lógica de WellDataFrame (classmethod)
+            from src.pypozo.core.well import WellDataFrame
+            merged_well = WellDataFrame.merge_wells([existing_well, new_well], existing_name)
+            
+            # Reemplazar el pozo existente con la versión fusionada
+            self.wells[existing_name] = merged_well
+            
+            # Actualizar la interfaz de usuario
+            self.update_wells_count()
+            self.update_well_properties()
+            
+            self.log_activity(f"✅ Pozo {existing_name} fusionado exitosamente")
+            
+            # Preguntar si quiere guardar el resultado
+            self._prompt_save_after_merge(existing_name, merged_well)
+            
+        except Exception as e:
+            self.log_activity(f"❌ Error fusionando pozos: {e}")
+            logger.error(f"Error en _merge_duplicate_wells: {e}")
+    
+    def _prompt_save_after_merge(self, well_name: str, merged_well: WellManager):
+        """Preguntar al usuario si quiere guardar después de fusionar."""
+        try:
+            reply = QMessageBox.question(
+                self,
+                "💾 Guardar Fusión",
+                f"¿Desea guardar el pozo fusionado '{well_name}' en un archivo LAS?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            
+            if reply == QMessageBox.Yes:
+                # Usar el método de exportación existente
+                if hasattr(merged_well, 'export_to_las'):
+                    # Generar nombre de archivo sugerido
+                    suggested_name = f"{well_name}_MERGED.las"
+                    file_path, _ = QFileDialog.getSaveFileName(
+                        self,
+                        "Guardar Pozo Fusionado",
+                        suggested_name,
+                        "LAS files (*.las);;All files (*.*)"
+                    )
+                    
+                    if file_path:
+                        merged_well.export_to_las(file_path)
+                        self.log_activity(f"💾 Pozo fusionado guardado en: {file_path}")
+                        QMessageBox.information(
+                            self,
+                            "✅ Guardado",
+                            f"El pozo fusionado se guardó exitosamente en:\n{file_path}"
+                        )
+                else:
+                    self.log_activity("❌ Error: El pozo fusionado no tiene método de exportación")
+                    
+        except Exception as e:
+            self.log_activity(f"❌ Error guardando pozo fusionado: {e}")
+            logger.error(f"Error en _prompt_save_after_merge: {e}")
 
 def main():
     """Función principal para ejecutar la aplicación."""
