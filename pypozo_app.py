@@ -17,6 +17,7 @@ import logging
 import traceback
 import numpy as np
 from pathlib import Path
+import pandas as pd
 from typing import List, Optional, Dict, Any
 
 # Agregar src al path
@@ -1408,7 +1409,7 @@ class PyPozoApp(QMainWindow):
     
     def select_basic_curves(self):
         """Seleccionar curvas básicas."""
-        basic_curves = ["GR", "SP", "CAL", "RT", "RHOB", "NPHI"]
+        basic_curves = ["GR", "SP", "CAL", "CALI", "RT", "RHOB", "NPHI"]
         self.select_curves_by_names(basic_curves)
     
     def select_petro_curves(self):
@@ -1427,8 +1428,21 @@ class PyPozoApp(QMainWindow):
             return
         
         electrical_curves = []
+        # Buscar curvas de resistividad por nombre y unidades
         for curve in self.current_well.curves:
-            if self.plotter._is_electrical_curve(curve, self.current_well):
+            curve_upper = curve.upper()
+            units = self.current_well.get_curve_units(curve)
+            units_lower = units.lower() if units else ""
+            
+            # Criterios de identificación de curvas eléctricas
+            is_electrical = (
+                # Por nombre
+                any(keyword in curve_upper for keyword in ['RT', 'RES', 'ILD', 'LLD', 'MSFL', 'LLS', 'SP', 'AT90', 'AT60', 'AT30', 'AT20', 'AT10']) or
+                # Por unidades
+                any(unit in units_lower for unit in ['ohm', 'ohmm', 'mv'])
+            )
+            
+            if is_electrical:
                 electrical_curves.append(curve)
         
         if electrical_curves:
@@ -1598,6 +1612,14 @@ class PyPozoApp(QMainWindow):
                 ax.set_xlabel('Valores Normalizados (0-1)', fontsize=11, fontweight='bold')
             else:
                 ax.set_xlabel('Valores Originales', fontsize=11, fontweight='bold')
+                # Verificar si alguna curva es de resistividad para aplicar escala log
+                for curve_name in selected_curves:
+                    if curve_name in self.current_well.curves:
+                        units = self.current_well.get_curve_units(curve_name)
+                        if units and ('ohm' in units.lower() or 'ohmm' in units.lower()):
+                            ax.set_xscale('log')
+                            self.log_activity(f"📊 Aplicando escala logarítmica (resistividad detectada)")
+                            break
             
             ax.set_ylabel('Profundidad (m)', fontsize=12, fontweight='bold')
             ax.set_title(f'Curvas Combinadas - {self.current_well.name}', fontsize=14, fontweight='bold')
@@ -1700,6 +1722,11 @@ class PyPozoApp(QMainWindow):
             # Obtener unidades para la etiqueta (solo unidades, no repetir nombre)
             units = well.get_curve_units(curve_name)
             xlabel = f'({units})' if units else 'Valores'
+            
+            # Configurar escala logarítmica para curvas de resistividad
+            if units and ('ohm' in units.lower() or 'ohmm' in units.lower()):
+                ax.set_xscale('log')
+                self.log_activity(f"📊 Aplicando escala logarítmica a {curve_name} (resistividad)")
             
             # Configurar ejes
             ax.set_xlabel(xlabel, fontsize=11, fontweight='bold')
@@ -1875,7 +1902,7 @@ class PyPozoApp(QMainWindow):
             analysis_results.append(f"\n=== CURVAS IDENTIFICADAS ===")
             
             # Curvas básicas
-            basic_curves = ["GR", "SP", "CAL", "RT", "RHOB", "NPHI"]
+            basic_curves = ["GR", "SP", "CAL", "CALI", "RT", "RHOB", "NPHI"]
             found_basic = [c for c in basic_curves if c in well.curves]
             if found_basic:
                 analysis_results.append(f"Básicas: {', '.join(found_basic)}")
@@ -1985,9 +2012,9 @@ Fecha: Julio 2025</p>
 <ul>
 <li>✅ VCL (Volumen de Arcilla)</li>
 <li>✅ PHIE (Porosidad Efectiva)</li>
+<li>✅ SW (Saturación de Agua) - 6 métodos disponibles</li>
 <li>✅ Análisis Litológico</li>
-<li>🔄 SW (Saturación de Agua) - Próximamente</li>
-<li>🔄 Permeabilidad - Próximamente</li>
+<li>✅ Permeabilidad - 5 métodos disponibles</li>
 </ul>
 
 <p><i>Alternativa Open Source profesional a WellCAD</i></p>
@@ -2104,14 +2131,14 @@ Fecha: Julio 2025</p>
                     **kwargs
                 )
                 phie_name = "PHIE_RHOB"
-                porosity_key = 'phid'
+                porosity_key = 'porosity'  # Corregido: usar 'porosity' en lugar de 'phid'
                 
             elif method == "neutron":
                 result = self.porosity_calculator.calculate_neutron_porosity(
                     neutron_porosity=self.current_well.data[nphi_curve]
                 )
                 phie_name = "PHIE_NPHI"
-                porosity_key = 'phin'
+                porosity_key = 'porosity'  # Corregido: usar 'porosity' en lugar de 'phin'
                 
             elif method == "combined":
                 result = self.porosity_calculator.calculate_density_neutron_porosity(
@@ -2142,24 +2169,43 @@ Fecha: Julio 2025</p>
                 phie_name += "_GAS_CORR"
                 self.petro_results.append(f"🔧 Corrección de gas aplicada")
             
+            # Debug: mostrar claves disponibles en el resultado
+            available_keys = list(result.keys()) if isinstance(result, dict) else ['result_not_dict']
+            self.log_activity(f"Debug - Claves disponibles en resultado: {available_keys}")
+            
             # Determinar la clave de porosidad a usar (prioritizar correcciones)
-            if 'porosity_corrected' in result and self.clay_correction_cb.isChecked():
+            if 'porosity_corrected' in result:
                 porosity_key = 'porosity_corrected'
-            elif 'phie_corrected' in result and self.clay_correction_cb.isChecked():
+            elif 'phie_corrected' in result:
                 porosity_key = 'phie_corrected'
-            elif 'porosity_gas_corrected' in result and self.gas_correction_cb.isChecked():
+            elif 'porosity_gas_corrected' in result:
                 porosity_key = 'porosity_gas_corrected'
-            elif 'phie_gas_corrected' in result and self.gas_correction_cb.isChecked():
+            elif 'phie_gas_corrected' in result:
                 porosity_key = 'phie_gas_corrected'
             elif 'phie' in result:
                 porosity_key = 'phie'
-            else:
+            elif 'porosity' in result:
                 porosity_key = 'porosity'
+            else:
+                # Fallback: usar la primera clave numérica disponible
+                numeric_keys = [k for k, v in result.items() if isinstance(v, (np.ndarray, list, pd.Series)) and k != 'warnings']
+                if numeric_keys:
+                    porosity_key = numeric_keys[0]
+                else:
+                    raise ValueError("No se encontró ninguna clave de datos de porosidad válida en el resultado")
             
             # Agregar resultado al pozo
+            try:
+                porosity_values = result[porosity_key]
+                self.log_activity(f"Debug - Usando clave '{porosity_key}' para porosidad")
+            except KeyError as ke:
+                self.log_activity(f"❌ Error: Clave '{porosity_key}' no encontrada. Claves disponibles: {list(result.keys())}")
+                QMessageBox.critical(self, "Error", f"Clave de porosidad '{porosity_key}' no encontrada en resultado.\nClaves disponibles: {list(result.keys())}")
+                return
+            
             success = self.current_well.add_curve(
                 curve_name=phie_name,
-                data=result[porosity_key],
+                data=porosity_values,
                 units='fraction',
                 description=f'Effective porosity calculated using {method} method'
             )
@@ -2174,8 +2220,7 @@ Fecha: Julio 2025</p>
             self.petro_results.append(f"📊 Curva creada: {phie_name}")
             self.petro_results.append(f"📈 Estadísticas:")
             
-            porosity_data = result[porosity_key]
-            valid_por = porosity_data[~np.isnan(porosity_data)]
+            valid_por = porosity_values[~np.isnan(porosity_values)] if isinstance(porosity_values, np.ndarray) else porosity_values.dropna()
             
             if len(valid_por) > 0:
                 self.petro_results.append(f"   • Promedio: {valid_por.mean():.3f}")
@@ -2240,29 +2285,472 @@ Fecha: Julio 2025</p>
         dialog.exec_()
     
     def analyze_lithology(self):
-        """Realizar análisis litológico básico."""
+        """Realizar análisis litológico completo."""
         try:
             if not self.current_well:
                 QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
                 return
             
-            # Buscar curvas disponibles
-            rhob_curve = self.por_rhob_combo.currentText()
-            nphi_curve = self.por_nphi_combo.currentText()
+            # Obtener tipo de análisis seleccionado
+            analysis_type = self.lithology_analysis_combo.currentText()
             
-            if not rhob_curve or rhob_curve not in self.current_well.data.columns:
-                QMessageBox.warning(self, "Advertencia", "Curva RHOB no disponible para análisis")
+            # Obtener curvas seleccionadas
+            gr_curve = self.lith_gr_combo.currentText()
+            rhob_curve = self.lith_rhob_combo.currentText()
+            nphi_curve = self.lith_nphi_combo.currentText()
+            pef_curve = self.lith_pef_combo.currentText()
+            rt_curve = self.lith_rt_combo.currentText()
+            
+            # Validar curvas mínimas según el tipo de análisis
+            if analysis_type == "crossplots":
+                if not rhob_curve or rhob_curve not in self.current_well.data.columns:
+                    QMessageBox.warning(self, "Advertencia", "Curva RHOB requerida para crossplots")
+                    return
+                if not nphi_curve or nphi_curve not in self.current_well.data.columns:
+                    QMessageBox.warning(self, "Advertencia", "Curva NPHI requerida para crossplots")
+                    return
+                
+                # Ejecutar análisis de crossplots
+                self.generate_lithology_crossplots()
+                return
+                
+            elif analysis_type == "facies_classification":
+                required = [('GR', gr_curve), ('RHOB', rhob_curve), ('NPHI', nphi_curve)]
+                missing = []
+                for name, curve in required:
+                    if not curve or curve not in self.current_well.data.columns:
+                        missing.append(name)
+                
+                if missing:
+                    QMessageBox.warning(self, "Advertencia", 
+                                      f"Curvas requeridas para facies: {', '.join(missing)}")
+                    return
+                
+                # Ejecutar clasificación de facies
+                self.classify_facies()
+                return
+                
+            elif analysis_type == "mineral_identification":
+                # Análisis de identificación mineral usando PEF
+                if not pef_curve or pef_curve not in self.current_well.data.columns:
+                    QMessageBox.warning(self, "Advertencia", "Curva PEF requerida para identificación mineral")
+                    return
+                if not rhob_curve or rhob_curve not in self.current_well.data.columns:
+                    QMessageBox.warning(self, "Advertencia", "Curva RHOB requerida para identificación mineral")
+                    return
+                
+                self._perform_mineral_identification()
+                return
+                
+            elif analysis_type == "reservoir_quality":
+                # Evaluación de calidad de reservorio
+                self._perform_reservoir_quality_assessment()
+                return
+                
+            elif analysis_type == "depositional_environment":
+                # Análisis de ambiente deposicional
+                if not gr_curve or gr_curve not in self.current_well.data.columns:
+                    QMessageBox.warning(self, "Advertencia", "Curva GR requerida para análisis deposicional")
+                    return
+                
+                self._perform_depositional_analysis()
                 return
             
-            if not nphi_curve or nphi_curve not in self.current_well.data.columns:
-                QMessageBox.warning(self, "Advertencia", "Curva NPHI no disponible para análisis")
+            else:
+                QMessageBox.information(self, "Información", f"Análisis '{analysis_type}' en desarrollo")
+                
+        except Exception as e:
+            self.log_activity(f"❌ Error en análisis litológico: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error en análisis litológico:\n{str(e)}")
+    
+    def _perform_mineral_identification(self):
+        """Realizar identificación mineral usando PEF y RHOB."""
+        try:
+            pef_curve = self.lith_pef_combo.currentText()
+            rhob_curve = self.lith_rhob_combo.currentText()
+            nphi_curve = self.lith_nphi_combo.currentText()
+            
+            pef_data = self.current_well.data[pef_curve]
+            rhob_data = self.current_well.data[rhob_curve]
+            nphi_data = self.current_well.data[nphi_curve] if nphi_curve and nphi_curve in self.current_well.data.columns else None
+            
+            self.log_activity(f"🔬 Identificando minerales usando PEF-RHOB...")
+            
+            # Usar el analizador de litología
+            result = self.lithology_analyzer.photoelectric_analysis(
+                pe=pef_data,
+                rhob=rhob_data,
+                nphi=nphi_data
+            )
+            
+            if not result.get('success', False):
+                QMessageBox.critical(self, "Error", f"Error en identificación mineral: {result.get('error', 'Error desconocido')}")
                 return
             
-            # Calcular porosidades para análisis litológico
-            rhob_data = self.current_well.data[rhob_curve].values
-            nphi_data = self.current_well.data[nphi_curve].values
+            # Agregar resultado al pozo
+            mineral_ids = result['mineral_identification']
+            mineral_curve_name = "MINERAL_ID"
             
-            # Calcular porosidad densidad (usando parámetros por defecto)
+            success = self.current_well.add_curve(
+                curve_name=mineral_curve_name,
+                data=mineral_ids,
+                units='category',
+                description='Mineral identification from PEF-RHOB analysis'
+            )
+            
+            if not success:
+                QMessageBox.critical(self, "Error", f"No se pudo agregar curva {mineral_curve_name}")
+                return
+            
+            # Mostrar resultados
+            self.lithology_results_text.clear()
+            self.lithology_results_text.append("✅ Identificación mineral completada")
+            self.lithology_results_text.append(f"📊 Curva creada: {mineral_curve_name}")
+            
+            # Estadísticas por mineral
+            mineral_stats = result['mineral_statistics']
+            self.lithology_results_text.append(f"\n📊 Distribución Mineralógica:")
+            
+            for mineral, stats in mineral_stats.items():
+                if stats['count'] > 0:
+                    self.lithology_results_text.append(f"\n🪨 {mineral.upper()}:")
+                    self.lithology_results_text.append(f"   • Puntos: {stats['count']} ({stats['percentage']:.1f}%)")
+                    self.lithology_results_text.append(f"   • PEF promedio: {stats['avg_pe']:.2f}")
+                    self.lithology_results_text.append(f"   • RHOB promedio: {stats['avg_rhob']:.3f} g/cm³")
+            
+            # Generar gráfico mineralógico
+            self._plot_mineral_identification(pef_data, rhob_data, mineral_ids)
+            
+            self.log_activity(f"✅ Identificación mineral: {mineral_curve_name}")
+            self.update_curves_list()
+            
+        except Exception as e:
+            self.log_activity(f"❌ Error en identificación mineral: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error en identificación mineral:\n{str(e)}")
+    
+    def _perform_reservoir_quality_assessment(self):
+        """Evaluar calidad de reservorio."""
+        try:
+            # Buscar curvas necesarias (calculadas o originales)
+            porosity_curves = [col for col in self.current_well.data.columns if any(p in col.upper() for p in ['PHIE', 'PHI', 'NPHI'])]
+            permeability_curves = [col for col in self.current_well.data.columns if 'PERM' in col.upper()]
+            vcl_curves = [col for col in self.current_well.data.columns if 'VCL' in col.upper()]
+            sw_curves = [col for col in self.current_well.data.columns if 'SW' in col.upper()]
+            
+            if not porosity_curves:
+                QMessageBox.warning(self, "Advertencia", "No se encontraron curvas de porosidad para evaluación")
+                return
+            
+            # Seleccionar curvas más adecuadas
+            porosity_curve = porosity_curves[0]  # Preferir PHIE si existe
+            if any('PHIE' in curve for curve in porosity_curves):
+                porosity_curve = [c for c in porosity_curves if 'PHIE' in c][0]
+            
+            permeability_curve = permeability_curves[0] if permeability_curves else None
+            vcl_curve = vcl_curves[0] if vcl_curves else None
+            sw_curve = sw_curves[0] if sw_curves else None
+            
+            self.log_activity(f"🏆 Evaluando calidad de reservorio...")
+            
+            # Obtener datos
+            porosity_data = self.current_well.data[porosity_curve]
+            permeability_data = self.current_well.data[permeability_curve] if permeability_curve else None
+            vcl_data = self.current_well.data[vcl_curve] if vcl_curve else None
+            sw_data = self.current_well.data[sw_curve] if sw_curve else None
+            
+            # Si no hay permeabilidad, estimar usando Timur
+            if permeability_data is None:
+                self.log_activity("⚠️ No hay permeabilidad, estimando con Timur...")
+                # Estimar permeabilidad básica para el análisis
+                phi_valid = porosity_data.dropna()
+                if len(phi_valid) > 0:
+                    swi_est = 0.25  # Estimación por defecto
+                    perm_est = 0.136 * (phi_valid / swi_est) ** 4.4
+                    # Crear serie completa
+                    permeability_data = pd.Series(index=porosity_data.index, dtype=float)
+                    permeability_data[phi_valid.index] = perm_est
+                else:
+                    QMessageBox.warning(self, "Advertencia", "No hay datos válidos de porosidad")
+                    return
+            
+            # Usar el analizador de litología
+            result = self.lithology_analyzer.reservoir_quality_assessment(
+                porosity=porosity_data,
+                permeability=permeability_data,
+                vclay=vcl_data,
+                sw=sw_data
+            )
+            
+            if not result.get('success', False):
+                QMessageBox.critical(self, "Error", f"Error en evaluación de calidad: {result.get('error', 'Error desconocido')}")
+                return
+            
+            # Agregar curva de calidad al pozo
+            quality_classes = result['reservoir_quality']
+            quality_curve_name = "RES_QUALITY"
+            
+            success = self.current_well.add_curve(
+                curve_name=quality_curve_name,
+                data=quality_classes,
+                units='category',
+                description='Reservoir quality assessment'
+            )
+            
+            if success:
+                self.log_activity(f"📊 Curva de calidad creada: {quality_curve_name}")
+            
+            # Mostrar resultados detallados
+            self.lithology_results_text.clear()
+            self.lithology_results_text.append("✅ Evaluación de calidad de reservorio completada")
+            self.lithology_results_text.append(f"📊 Curva creada: {quality_curve_name}")
+            
+            # Mostrar estadísticas por clase de calidad
+            quality_stats = result['quality_statistics']
+            self.lithology_results_text.append(f"\n📊 Distribución de Calidad:")
+            
+            quality_order = ['Excellent', 'Good', 'Fair', 'Poor', 'Non-reservoir']
+            for quality in quality_order:
+                if quality in quality_stats:
+                    stats = quality_stats[quality]
+                    self.lithology_results_text.append(f"\n🏷️ {quality}:")
+                    self.lithology_results_text.append(f"   • Porcentaje: {stats['percentage']:.1f}%")
+                    self.lithology_results_text.append(f"   • Puntos: {stats['count']}")
+                    if 'avg_porosity' in stats:
+                        self.lithology_results_text.append(f"   • φ promedio: {stats['avg_porosity']:.3f}")
+                    if 'avg_permeability' in stats:
+                        self.lithology_results_text.append(f"   • K promedio: {stats['avg_permeability']:.1f} mD")
+            
+            # Interpretación automática
+            excellent_good = quality_stats.get('Excellent', {}).get('percentage', 0) + quality_stats.get('Good', {}).get('percentage', 0)
+            
+            self.lithology_results_text.append(f"\n🔍 Interpretación:")
+            if excellent_good > 50:
+                interpretation = "🟢 Reservorio de alta calidad con buen potencial comercial"
+            elif excellent_good > 25:
+                interpretation = "🟡 Reservorio de calidad moderada, evaluar viabilidad económica"
+            else:
+                interpretation = "🔴 Reservorio de baja calidad, requiere tecnologías especiales"
+            
+            self.lithology_results_text.append(f"   {interpretation}")
+            
+            self.log_activity(f"✅ Evaluación de calidad completada")
+            self.update_curves_list()
+            
+        except Exception as e:
+            self.log_activity(f"❌ Error en evaluación de calidad: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error en evaluación de calidad:\n{str(e)}")
+    
+    def _perform_depositional_analysis(self):
+        """Realizar análisis de ambiente deposicional."""
+        try:
+            gr_curve = self.lith_gr_combo.currentText()
+            gr_data = self.current_well.data[gr_curve]
+            
+            self.log_activity(f"🌊 Analizando ambiente deposicional...")
+            
+            # Análisis básico de patrones de GR
+            # Calcular tendencias y variabilidad
+            window_size = max(10, len(gr_data) // 50)  # Ventana adaptiva
+            
+            # Tendencia general (regresión lineal simple)
+            depth_values = np.arange(len(gr_data))
+            valid_mask = ~np.isnan(gr_data)
+            
+            if np.sum(valid_mask) < 10:
+                QMessageBox.warning(self, "Advertencia", "Datos insuficientes para análisis deposicional")
+                return
+            
+            # Calcular estadísticas móviles
+            gr_trend = np.full_like(gr_data, np.nan)
+            gr_variability = np.full_like(gr_data, np.nan)
+            
+            for i in range(len(gr_data)):
+                start_idx = max(0, i - window_size // 2)
+                end_idx = min(len(gr_data), i + window_size // 2)
+                
+                window_data = gr_data[start_idx:end_idx]
+                valid_window = window_data[~np.isnan(window_data)]
+                
+                if len(valid_window) > 3:
+                    gr_trend[i] = np.mean(valid_window)
+                    gr_variability[i] = np.std(valid_window)
+            
+            # Clasificación de ambientes basada en características de GR
+            environment_class = np.full_like(gr_data, 'Unknown', dtype='<U20')
+            
+            for i, (gr_val, trend_val, var_val) in enumerate(zip(gr_data, gr_trend, gr_variability)):
+                if np.isnan(gr_val) or np.isnan(trend_val) or np.isnan(var_val):
+                    continue
+                
+                # Lógica simplificada de clasificación
+                if gr_val < 50:  # Bajo GR
+                    if var_val < 10:
+                        environment_class[i] = 'Marino_Somero'
+                    else:
+                        environment_class[i] = 'Fluvial_Canal'
+                elif gr_val < 100:  # GR moderado
+                    if var_val < 15:
+                        environment_class[i] = 'Deltaico'
+                    else:
+                        environment_class[i] = 'Fluvial_Llanura'
+                else:  # Alto GR
+                    if var_val < 20:
+                        environment_class[i] = 'Marino_Profundo'
+                    else:
+                        environment_class[i] = 'Lacustre'
+            
+            # Agregar curvas al pozo
+            trend_curve_name = "GR_TREND"
+            var_curve_name = "GR_VARIABILITY"
+            env_curve_name = "DEPO_ENVIRONMENT"
+            
+            # Agregar tendencia
+            success1 = self.current_well.add_curve(
+                curve_name=trend_curve_name,
+                data=gr_trend,
+                units='API',
+                description='GR trend analysis for depositional environment'
+            )
+            
+            # Agregar variabilidad
+            success2 = self.current_well.add_curve(
+                curve_name=var_curve_name,
+                data=gr_variability,
+                units='API',
+                description='GR variability analysis'
+            )
+            
+            # Agregar clasificación ambiental
+            success3 = self.current_well.add_curve(
+                curve_name=env_curve_name,
+                data=environment_class,
+                units='category',
+                description='Depositional environment interpretation'
+            )
+            
+            # Mostrar resultados
+            self.lithology_results_text.clear()
+            self.lithology_results_text.append("✅ Análisis de ambiente deposicional completado")
+            
+            if success1:
+                self.lithology_results_text.append(f"📊 Tendencia GR: {trend_curve_name}")
+            if success2:
+                self.lithology_results_text.append(f"📊 Variabilidad GR: {var_curve_name}")
+            if success3:
+                self.lithology_results_text.append(f"📊 Ambiente: {env_curve_name}")
+            
+            # Estadísticas ambientales
+            unique_envs, counts = np.unique(environment_class[environment_class != 'Unknown'], return_counts=True)
+            total_valid = np.sum(counts)
+            
+            if total_valid > 0:
+                self.lithology_results_text.append(f"\n📊 Distribución de Ambientes:")
+                for env, count in zip(unique_envs, counts):
+                    percentage = (count / total_valid) * 100
+                    self.lithology_results_text.append(f"   • {env}: {count} puntos ({percentage:.1f}%)")
+            
+            # Generar gráfico de análisis deposicional
+            self._plot_depositional_analysis(gr_data, gr_trend, gr_variability, environment_class)
+            
+            self.log_activity(f"✅ Análisis deposicional completado")
+            self.update_curves_list()
+            
+        except Exception as e:
+            self.log_activity(f"❌ Error en análisis deposicional: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error en análisis deposicional:\n{str(e)}")
+    
+    def _plot_mineral_identification(self, pef_data, rhob_data, mineral_ids):
+        """Generar gráfico de identificación mineral."""
+        try:
+            self.figure.clear()
+            ax = self.figure.add_subplot(111)
+            
+            # Datos válidos
+            valid_mask = (~np.isnan(pef_data)) & (~np.isnan(rhob_data))
+            pef_valid = pef_data[valid_mask]
+            rhob_valid = rhob_data[valid_mask]
+            minerals_valid = mineral_ids[valid_mask]
+            
+            # Colores para minerales
+            mineral_colors = {
+                'quartz': 'red',
+                'calcite': 'blue', 
+                'dolomite': 'green',
+                'clay': 'orange',
+                'anhydrite': 'purple',
+                'unknown': 'gray'
+            }
+            
+            # Plotear por mineral
+            for mineral in np.unique(minerals_valid):
+                if mineral in mineral_colors:
+                    mask = minerals_valid == mineral
+                    ax.scatter(rhob_valid[mask], pef_valid[mask], 
+                             c=mineral_colors[mineral], alpha=0.6, s=20, label=mineral.capitalize())
+            
+            # Líneas de referencia mineralógica
+            ax.axhline(y=1.81, color='red', linestyle='--', alpha=0.5, label='Cuarzo (1.81)')
+            ax.axhline(y=5.08, color='blue', linestyle='--', alpha=0.5, label='Calcita (5.08)')
+            ax.axhline(y=3.14, color='green', linestyle='--', alpha=0.5, label='Dolomita (3.14)')
+            ax.axhline(y=2.8, color='orange', linestyle='--', alpha=0.5, label='Arcilla (2.8)')
+            
+            ax.set_xlabel('RHOB (g/cm³)')
+            ax.set_ylabel('PEF (barns/electron)')
+            ax.set_title('Identificación Mineral - PEF vs RHOB')
+            ax.grid(True, alpha=0.3)
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+            
+            self.figure.tight_layout()
+            self.canvas.draw()
+            
+        except Exception as e:
+            self.log_activity(f"⚠️ Error en gráfico mineral: {str(e)}")
+    
+    def _plot_depositional_analysis(self, gr_data, gr_trend, gr_variability, environment_class):
+        """Generar gráfico de análisis deposicional."""
+        try:
+            self.figure.clear()
+            
+            # Crear subplots
+            gs = self.figure.add_gridspec(1, 3, hspace=0.3, wspace=0.4)
+            ax1 = self.figure.add_subplot(gs[0, 0])  # GR original
+            ax2 = self.figure.add_subplot(gs[0, 1])  # Tendencia
+            ax3 = self.figure.add_subplot(gs[0, 2])  # Variabilidad
+            
+            depth = np.arange(len(gr_data))
+            
+            # GR original
+            ax1.plot(gr_data, depth, 'b-', linewidth=0.5)
+            ax1.set_ylabel('Depth Index')
+            ax1.set_xlabel('GR (API)')
+            ax1.set_title('GR Original')
+            ax1.grid(True, alpha=0.3)
+            ax1.invert_yaxis()
+            
+            # Tendencia
+            valid_trend = ~np.isnan(gr_trend)
+            ax2.plot(gr_trend[valid_trend], depth[valid_trend], 'r-', linewidth=1)
+            ax2.set_xlabel('GR Trend (API)')
+            ax2.set_title('Tendencia')
+            ax2.grid(True, alpha=0.3)
+            ax2.invert_yaxis()
+            
+            # Variabilidad
+            valid_var = ~np.isnan(gr_variability)
+            ax3.plot(gr_variability[valid_var], depth[valid_var], 'g-', linewidth=1)
+            ax3.set_xlabel('GR Variability')
+            ax3.set_title('Variabilidad')
+            ax3.grid(True, alpha=0.3)
+            ax3.invert_yaxis()
+            
+            well_name = self.current_well.name or "Pozo Actual"
+            self.figure.suptitle(f'Análisis Deposicional - {well_name}', fontsize=12, fontweight='bold')
+            
+            self.figure.tight_layout()
+            self.canvas.draw()
+            
+        except Exception as e:
+            self.log_activity(f"⚠️ Error en gráfico deposicional: {str(e)}")
             phid_result = self.porosity_calculator.calculate_density_porosity(
                 bulk_density=rhob_data,
                 matrix_density=2.65,  # Arenisca por defecto
@@ -2486,7 +2974,7 @@ Fecha: Julio 2025</p>
                 self.sw_porosity_combo.clear()
                 self.sw_vcl_combo.clear()
                 
-                rt_curves = [c for c in curves if any(keyword in c.upper() for keyword in ['RT', 'RES', 'ILD', 'LLD'])]
+                rt_curves = [c for c in curves if any(keyword in c.upper() for keyword in ['RT', 'RES', 'ILD', 'LLD', 'MSFL', 'LLS', 'AT90', 'AT60', 'AT30', 'AT20', 'AT10'])]
                 porosity_curves = [c for c in curves if any(keyword in c.upper() for keyword in ['PHIE', 'NPHI', 'RHOB'])]
                 vcl_curves = [c for c in curves if any(keyword in c.upper() for keyword in ['VCL', 'VSH', 'GR'])]
                 
@@ -2893,28 +3381,383 @@ Fecha: Julio 2025</p>
 # ==================== MÉTODOS PLACEHOLDERS ADICIONALES ====================
 
     def calculate_water_saturation(self):
-        """Calcular saturación de agua (placeholder)."""
-        if not self.current_well:
-            QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
-            return
-        self.log_activity("💧 Función de saturación de agua en desarrollo")
-        QMessageBox.information(self, "Desarrollo", "Función de saturación de agua en desarrollo")
+        """Calcular saturación de agua usando ecuación de Archie."""
+        try:
+            if not self.current_well:
+                QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
+                return
+            
+            # Obtener parámetros de la UI
+            method = self.sw_method_combo.currentText()
+            rt_curve = self.sw_rt_combo.currentText()
+            porosity_curve = self.sw_porosity_combo.currentText()
+            vcl_curve = self.sw_vcl_combo.currentText() if self.sw_vcl_combo.currentText() else None
+            
+            # Parámetros de Archie
+            a = self.sw_a_spinbox.value()
+            m = self.sw_m_spinbox.value()
+            n = self.sw_n_spinbox.value()
+            rw = self.sw_rw_spinbox.value()
+            rsh = self.sw_rsh_spinbox.value()
+            
+            # Validar curvas requeridas
+            if not rt_curve or rt_curve not in self.current_well.data.columns:
+                QMessageBox.warning(self, "Advertencia", f"Curva de resistividad '{rt_curve}' no encontrada")
+                return
+            
+            if not porosity_curve or porosity_curve not in self.current_well.data.columns:
+                QMessageBox.warning(self, "Advertencia", f"Curva de porosidad '{porosity_curve}' no encontrada")
+                return
+            
+            # Obtener datos
+            rt_data = self.current_well.data[rt_curve].values
+            porosity_data = self.current_well.data[porosity_curve].values
+            vcl_data = None
+            
+            if vcl_curve and vcl_curve in self.current_well.data.columns:
+                vcl_data = self.current_well.data[vcl_curve].values
+            
+            self.log_activity(f"💧 Calculando Sw usando método: {method}")
+            
+            # Calcular según el método seleccionado
+            if method == "archie_simple":
+                # Archie Simple: Sw = ((a * Rw) / (φ^m * Rt))^(1/n)
+                sw_data = np.power((a * rw) / (np.power(porosity_data, m) * rt_data), 1/n)
+                sw_name = "SW_ARCHIE"
+                description = f"Water saturation calculated using Archie equation (a={a}, m={m}, n={n}, Rw={rw})"
+                
+            elif method == "archie_modified":
+                # Archie Modificado con VCL: φe = φ * (1 - VCL)
+                if vcl_data is not None:
+                    effective_porosity = porosity_data * (1 - vcl_data)
+                    sw_data = np.power((a * rw) / (np.power(effective_porosity, m) * rt_data), 1/n)
+                    description = f"Water saturation calculated using modified Archie equation with VCL correction"
+                else:
+                    # Fallback a Archie simple si no hay VCL
+                    self.log_activity("⚠️ VCL no disponible para Archie modificado, usando Archie simple")
+                    sw_data = np.power((a * rw) / (np.power(porosity_data, m) * rt_data), 1/n)
+                    description = f"Water saturation calculated using Archie equation (VCL not available)"
+                sw_name = "SW_ARCHIE_MOD"
+                
+            elif method == "simandoux":
+                # Simandoux: Para formaciones arcillosas
+                if vcl_data is not None:
+                    # Sw = (a * Rw / (2 * φ^m)) * [√(((VCL/Rsh) + (2*φ^m/a*Rw))^2 + 4*φ^m/(a*Rw*Rt)) - (VCL/Rsh + 2*φ^m/(a*Rw))]
+                    term1 = a * rw / (2 * np.power(porosity_data, m))
+                    term2 = vcl_data / rsh + 2 * np.power(porosity_data, m) / (a * rw)
+                    term3 = 4 * np.power(porosity_data, m) / (a * rw * rt_data)
+                    
+                    sw_data = term1 * (np.sqrt(np.power(term2, 2) + term3) - term2)
+                    description = f"Water saturation calculated using Simandoux equation for shaly formations"
+                else:
+                    # Fallback a Archie simple si no hay VCL
+                    self.log_activity("⚠️ VCL no disponible para Simandoux, usando Archie simple")
+                    sw_data = np.power((a * rw) / (np.power(porosity_data, m) * rt_data), 1/n)
+                    description = f"Water saturation calculated using Archie equation (VCL not available for Simandoux)"
+                sw_name = "SW_SIMANDOUX"
+                
+            elif method == "waxman_smits":
+                # Waxman-Smits: Para formaciones con arcillas conductivas
+                if vcl_data is not None:
+                    # Sw^n = (a * Rw * (1 + B * Qv)) / (φ^m * Rt)
+                    # Donde B = 0.045 y Qv ≈ VCL (aproximación)
+                    B = 0.045
+                    Qv = vcl_data  # Aproximación simple
+                    sw_data = np.power((a * rw * (1 + B * Qv)) / (np.power(porosity_data, m) * rt_data), 1/n)
+                    description = f"Water saturation calculated using Waxman-Smits equation for conductive clays"
+                else:
+                    # Fallback a Archie simple si no hay VCL
+                    self.log_activity("⚠️ VCL no disponible para Waxman-Smits, usando Archie simple")
+                    sw_data = np.power((a * rw) / (np.power(porosity_data, m) * rt_data), 1/n)
+                    description = f"Water saturation calculated using Archie equation (VCL not available for Waxman-Smits)"
+                sw_name = "SW_WAXMAN_SMITS"
+                
+            elif method == "dual_water":
+                # Dual Water: Modelo de dos aguas (simplificado)
+                # Asume que Swb = 0.1 * VCL (agua ligada) y calcula agua libre
+                if vcl_data is not None:
+                    swb = 0.1 * vcl_data  # Agua ligada
+                    # Sw_free usando Archie en porosidad efectiva
+                    effective_porosity = porosity_data - swb
+                    effective_porosity = np.maximum(effective_porosity, 0.01)  # Evitar valores negativos
+                    sw_free = np.power((a * rw) / (np.power(effective_porosity, m) * rt_data), 1/n)
+                    sw_data = sw_free + swb  # Saturación total
+                    description = f"Water saturation calculated using Dual Water model with VCL"
+                else:
+                    # Usar un valor estimado de agua ligada del 10%
+                    self.log_activity("⚠️ VCL no disponible para Dual Water, estimando agua ligada = 10%")
+                    swb = 0.1  # Agua ligada estimada
+                    effective_porosity = porosity_data - swb
+                    effective_porosity = np.maximum(effective_porosity, 0.01)
+                    sw_free = np.power((a * rw) / (np.power(effective_porosity, m) * rt_data), 1/n)
+                    sw_data = sw_free + swb
+                    description = f"Water saturation calculated using Dual Water model (estimated bound water)"
+                sw_name = "SW_DUAL_WATER"
+                
+            elif method == "indonesian":
+                # Ecuación Indonesa: Para formaciones fracturadas
+                if vcl_data is not None:
+                    # 1/√Rt = Vcl/√Rsh + φ^m/n * Sw^n/√(a*Rw) (simplificada)
+                    # Sw^n = √(a*Rw) * (1/√Rt - VCL/√Rsh) / φ^m/n
+                    term1 = np.sqrt(a * rw)
+                    term2 = 1/np.sqrt(rt_data) - vcl_data/np.sqrt(rsh)
+                    term3 = np.power(porosity_data, m/n)
+                    sw_data = np.power(np.maximum(term1 * term2 / term3, 0.001), 1/n)
+                    description = f"Water saturation calculated using Indonesian equation for fractured formations"
+                else:
+                    # Fallback a Archie si no hay VCL
+                    self.log_activity("⚠️ VCL no disponible para Ecuación Indonesa, usando Archie simple")
+                    sw_data = np.power((a * rw) / (np.power(porosity_data, m) * rt_data), 1/n)
+                    description = f"Water saturation calculated using Archie equation (VCL not available for Indonesian)"
+                sw_name = "SW_INDONESIAN"
+                
+            else:
+                # Método no reconocido, usar Archie simple
+                self.log_activity(f"⚠️ Método {method} no reconocido, usando Archie simple")
+                sw_data = np.power((a * rw) / (np.power(porosity_data, m) * rt_data), 1/n)
+                sw_name = "SW_ARCHIE"
+                description = f"Water saturation calculated using Archie equation (unknown method fallback)"
+            
+            # Aplicar límites físicos (0 ≤ Sw ≤ 1)
+            sw_data = np.clip(sw_data, 0.0, 1.0)
+            
+            # Manejar valores no válidos
+            sw_data = np.where(np.isfinite(sw_data), sw_data, np.nan)
+            
+            # Agregar resultado al pozo
+            success = self.current_well.add_curve(
+                curve_name=sw_name,
+                data=sw_data,
+                units='fraction',
+                description=description
+            )
+            
+            if not success:
+                QMessageBox.critical(self, "Error", f"No se pudo agregar la curva {sw_name}")
+                return
+            
+            # Mostrar resultados
+            self.sw_results_text.clear()
+            self.sw_results_text.append(f"✅ Saturación de agua calculada usando: {method}")
+            self.sw_results_text.append(f"📊 Curva creada: {sw_name}")
+            self.sw_results_text.append(f"📈 Estadísticas:")
+            
+            valid_sw = sw_data[np.isfinite(sw_data)]
+            
+            if len(valid_sw) > 0:
+                self.sw_results_text.append(f"   • Promedio: {valid_sw.mean():.3f}")
+                self.sw_results_text.append(f"   • Mediana: {np.median(valid_sw):.3f}")
+                self.sw_results_text.append(f"   • Mín: {valid_sw.min():.3f}")
+                self.sw_results_text.append(f"   • Máx: {valid_sw.max():.3f}")
+                self.sw_results_text.append(f"   • P90: {np.percentile(valid_sw, 90):.3f}")
+                self.sw_results_text.append(f"   • P10: {np.percentile(valid_sw, 10):.3f}")
+            else:
+                self.sw_results_text.append(f"   • No hay datos válidos")
+                
+            self.sw_results_text.append(f"🔧 Parámetros:")
+            self.sw_results_text.append(f"   • a (tortuosidad): {a}")
+            self.sw_results_text.append(f"   • m (cementación): {m}")
+            self.sw_results_text.append(f"   • n (saturación): {n}")
+            self.sw_results_text.append(f"   • Rw: {rw} ohm-m")
+            if method in ["simandoux", "archie_modified"]:
+                self.sw_results_text.append(f"   • Rsh: {rsh} ohm-m")
+            
+            # QC warnings
+            if len(valid_sw) > 0:
+                high_sw = np.sum(valid_sw > 0.8) / len(valid_sw) * 100
+                low_sw = np.sum(valid_sw < 0.2) / len(valid_sw) * 100
+                
+                self.sw_results_text.append(f"\n📊 Control de Calidad:")
+                self.sw_results_text.append(f"   • Sw > 80%: {high_sw:.1f}% de muestras")
+                self.sw_results_text.append(f"   • Sw < 20%: {low_sw:.1f}% de muestras")
+                
+                if high_sw > 70:
+                    self.sw_results_text.append(f"   ⚠️ Alta Sw dominante - revisar parámetros")
+                if low_sw > 50:
+                    self.sw_results_text.append(f"   ⚠️ Baja Sw dominante - posible hidrocarburo")
+            
+            self.log_activity(f"🧮 Sw calculada: {sw_name} (método: {method})")
+            self.update_curves_list()
+            self.update_petrophysics_ui()
+            
+        except Exception as e:
+            self.log_activity(f"❌ Error calculando Sw: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error calculando saturación de agua:\n{str(e)}")
     
     def calculate_permeability(self):
-        """Calcular permeabilidad (placeholder)."""
-        if not self.current_well:
-            QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
-            return
-        self.log_activity("🌊 Función de permeabilidad en desarrollo")
-        QMessageBox.information(self, "Desarrollo", "Función de permeabilidad en desarrollo")
+        """Calcular permeabilidad usando varios métodos empíricos."""
+        try:
+            if not self.current_well:
+                QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
+                return
+            
+            # Obtener parámetros de la UI
+            method = self.perm_method_combo.currentText()
+            porosity_curve = self.perm_porosity_combo.currentText()
+            sw_curve = self.perm_sw_combo.currentText()
+            
+            # Verificar si se usarán curvas calculadas
+            use_calc_porosity = self.perm_use_calc_porosity.isChecked()
+            use_calc_sw = self.perm_use_calc_sw.isChecked()
+            
+            # Buscar curvas de porosidad calculada si está habilitado
+            if use_calc_porosity:
+                calc_porosity_curves = [col for col in self.current_well.data.columns if 'PHIE' in col.upper()]
+                if calc_porosity_curves:
+                    porosity_curve = calc_porosity_curves[-1]  # Usar la más reciente
+                    self.log_activity(f"🔧 Usando porosidad calculada: {porosity_curve}")
+                else:
+                    QMessageBox.warning(self, "Advertencia", "No se encontró curva PHIE calculada")
+                    return
+            
+            # Buscar curvas de Sw calculada si está habilitado
+            if use_calc_sw:
+                calc_sw_curves = [col for col in self.current_well.data.columns if 'SW_' in col.upper()]
+                if calc_sw_curves:
+                    sw_curve = calc_sw_curves[-1]  # Usar la más reciente
+                    self.log_activity(f"🔧 Usando Sw calculada: {sw_curve}")
+                else:
+                    QMessageBox.warning(self, "Advertencia", "No se encontró curva SW calculada")
+                    return
+            
+            # Validar curvas
+            if not porosity_curve or porosity_curve not in self.current_well.data.columns:
+                QMessageBox.warning(self, "Advertencia", f"Curva de porosidad '{porosity_curve}' no encontrada")
+                return
+            
+            if not sw_curve or sw_curve not in self.current_well.data.columns:
+                QMessageBox.warning(self, "Advertencia", f"Curva de Sw '{sw_curve}' no encontrada")
+                return
+            
+            # Obtener parámetros del modelo
+            swi = self.perm_swi_spinbox.value()
+            c_factor = self.perm_c_factor_spinbox.value()
+            phi_exp = self.perm_phi_exp_spinbox.value()
+            sw_exp = self.perm_sw_exp_spinbox.value()
+            
+            # Preparar datos
+            porosity_data = self.current_well.data[porosity_curve]
+            sw_data = self.current_well.data[sw_curve]
+            
+            # Calcular permeabilidad según el método
+            if method == "timur":
+                result = self.permeability_calculator.calculate_timur_permeability(
+                    porosity=porosity_data,
+                    sw_irreducible=swi,
+                    c_factor=c_factor,
+                    phi_exponent=phi_exp,
+                    sw_exponent=abs(sw_exp)  # Timur usa exponente positivo
+                )
+                perm_name = "PERM_TIMUR"
+                
+            elif method == "kozeny_carman":
+                result = self.permeability_calculator.calculate_kozeny_carman_permeability(
+                    porosity=porosity_data,
+                    specific_surface=c_factor,  # Factor C se usa como superficie específica
+                    tortuosity=2.0  # Valor típico
+                )
+                perm_name = "PERM_KC"
+                
+            elif method == "wyllie_rose":
+                result = self.permeability_calculator.calculate_wyllie_rose_permeability(
+                    porosity=porosity_data,
+                    irreducible_saturation=swi,
+                    c_factor=c_factor
+                )
+                perm_name = "PERM_WR"
+                
+            elif method == "coates_denoo":
+                result = self.permeability_calculator.calculate_coates_denoo_permeability(
+                    porosity=porosity_data,
+                    sw_irreducible=swi,
+                    c_factor=c_factor
+                )
+                perm_name = "PERM_CD"
+                
+            elif method == "empirical":
+                # Modelo empírico general: K = C * φ^a * Sw^b
+                permeability = c_factor * (porosity_data ** phi_exp) * (sw_data ** sw_exp)
+                permeability = np.maximum(permeability, 0.001)  # Mínimo 0.001 mD
+                
+                result = {
+                    'permeability': permeability,
+                    'statistics': {
+                        'mean': np.nanmean(permeability),
+                        'median': np.nanmedian(permeability),
+                        'min': np.nanmin(permeability),
+                        'max': np.nanmax(permeability)
+                    }
+                }
+                perm_name = "PERM_EMP"
+            
+            # Determinar la clave de permeabilidad en el resultado
+            if 'permeability' in result:
+                perm_key = 'permeability'
+            elif 'perm' in result:
+                perm_key = 'perm'
+            else:
+                # Usar la primera clave numérica
+                numeric_keys = [k for k, v in result.items() if isinstance(v, (np.ndarray, list, pd.Series))]
+                if numeric_keys:
+                    perm_key = numeric_keys[0]
+                else:
+                    raise ValueError("No se encontró clave de permeabilidad válida en el resultado")
+            
+            # Agregar resultado al pozo
+            permeability_values = result[perm_key]
+            success = self.current_well.add_curve(
+                curve_name=perm_name,
+                data=permeability_values,
+                units='mD',
+                description=f'Permeability calculated using {method} method'
+            )
+            
+            if not success:
+                QMessageBox.critical(self, "Error", f"No se pudo agregar la curva {perm_name}")
+                return
+            
+            # Mostrar resultados
+            self.perm_results_text.clear()
+            self.perm_results_text.append(f"✅ Permeabilidad calculada usando método: {method}")
+            self.perm_results_text.append(f"📊 Curva creada: {perm_name}")
+            self.perm_results_text.append(f"📈 Estadísticas:")
+            
+            valid_perm = permeability_values[~np.isnan(permeability_values)] if isinstance(permeability_values, np.ndarray) else permeability_values.dropna()
+            
+            if len(valid_perm) > 0:
+                self.perm_results_text.append(f"   • Promedio: {valid_perm.mean():.2f} mD")
+                self.perm_results_text.append(f"   • Mediana: {np.median(valid_perm):.2f} mD")
+                self.perm_results_text.append(f"   • Mín: {valid_perm.min():.2f} mD")
+                self.perm_results_text.append(f"   • Máx: {valid_perm.max():.2f} mD")
+            else:
+                self.perm_results_text.append(f"   • No hay datos válidos para estadísticas")
+                
+            self.perm_results_text.append(f"\n🔧 Parámetros utilizados:")
+            self.perm_results_text.append(f"   • Swi: {swi:.3f}")
+            self.perm_results_text.append(f"   • Factor C: {c_factor:.3f}")
+            if method == "empirical":
+                self.perm_results_text.append(f"   • Exponente φ: {phi_exp:.1f}")
+                self.perm_results_text.append(f"   • Exponente Sw: {sw_exp:.1f}")
+            
+            # Mostrar curvas utilizadas
+            self.perm_results_text.append(f"\n📊 Curvas utilizadas:")
+            self.perm_results_text.append(f"   • Porosidad: {porosity_curve}")
+            self.perm_results_text.append(f"   • Sw: {sw_curve}")
+            
+            # Mostrar advertencias si las hay
+            if 'warnings' in result and result['warnings']:
+                self.perm_results_text.append(f"\n⚠️ Advertencias QC:")
+                for warning in result['warnings']:
+                    self.perm_results_text.append(f"   • {warning}")
+            
+            self.log_activity(f"🌊 Permeabilidad calculada: {perm_name} (método: {method})")
+            self.update_curves_list()
+            
+        except Exception as e:
+            self.log_activity(f"❌ Error calculando permeabilidad: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error calculando permeabilidad:\n{str(e)}")
     
-    def analyze_lithology(self):
-        """Analizar litología (placeholder)."""
-        if not self.current_well:
-            QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
-            return
-        self.log_activity("🪨 Función de análisis litológico en desarrollo")
-        QMessageBox.information(self, "Desarrollo", "Función de análisis litológico en desarrollo")
+
     
     # Métodos auxiliares para las nuevas pestañas
     def update_sw_method_info(self):
@@ -2933,11 +3776,261 @@ Fecha: Julio 2025</p>
     
     def show_sw_method_details(self):
         """Mostrar detalles del método de saturación de agua."""
-        QMessageBox.information(self, "Info Sw", "Detalles de métodos de saturación de agua en desarrollo")
+        method = self.sw_method_combo.currentText() if hasattr(self, 'sw_method_combo') else "archie_simple"
+        
+        info_texts = {
+            'archie_simple': """
+🧮 ARCHIE SIMPLE
+================
+
+📌 Ecuación:
+Sw = ((a * Rw) / (φ^m * Rt))^(1/n)
+
+📊 Parámetros:
+• a: Factor de tortuosidad (típico: 0.5-2.0)
+• m: Exponente de cementación (típico: 1.5-2.5)
+• n: Exponente de saturación (típico: 1.8-2.5)
+• Rw: Resistividad del agua de formación (ohm-m)
+• φ: Porosidad efectiva (fracción)
+• Rt: Resistividad verdadera (ohm-m)
+
+🎯 Aplicación:
+• Formaciones limpias (VCL < 10%)
+• Rocas consolidadas
+• Porosidad intergranular
+
+⚠️ Limitaciones:
+• No válido para formaciones arcillosas
+• Asume conductividad por agua de formación únicamente
+
+📚 Referencias:
+• Archie (1942): "The Electrical Resistivity Log as an Aid in Determining Some Reservoir Characteristics"
+            """,
+            
+            'archie_modified': """
+🧮 ARCHIE MODIFICADO CON VCL
+===========================
+
+📌 Ecuación:
+φe = φ * (1 - VCL)
+Sw = ((a * Rw) / (φe^m * Rt))^(1/n)
+
+📊 Parámetros:
+• Todos los de Archie simple
+• VCL: Volumen de arcilla (fracción)
+• φe: Porosidad efectiva corregida
+
+🎯 Aplicación:
+• Formaciones ligeramente arcillosas (VCL: 10-25%)
+• Corrección simple por arcilla
+• Transición entre limpio y arcilloso
+
+⚠️ Limitaciones:
+• Corrección simplificada
+• No considera conductividad de arcillas
+• VCL debe ser confiable
+
+📚 Referencias:
+• Modificación práctica de Archie (1942)
+            """,
+            
+            'simandoux': """
+🧮 SIMANDOUX
+============
+
+📌 Ecuación:
+Sw = (a*Rw/(2*φ^m)) * [√(((VCL/Rsh) + (2*φ^m/a*Rw))^2 + 4*φ^m/(a*Rw*Rt)) - (VCL/Rsh + 2*φ^m/(a*Rw))]
+
+📊 Parámetros:
+• Todos los de Archie
+• Rsh: Resistividad de la arcilla (ohm-m)
+• VCL: Volumen de arcilla (fracción)
+
+🎯 Aplicación:
+• Formaciones moderadamente arcillosas (VCL: 15-40%)
+• Modelo de resistores en paralelo
+• Arcillas dispersas
+
+⚠️ Limitaciones:
+• Requiere conocer Rsh
+• Asume arcillas dispersas uniformemente
+• Puede subestimar Sw en alta VCL
+
+📚 Referencias:
+• Simandoux (1963): "Dielectric measurements on porous media"
+            """,
+            
+            'waxman_smits': """
+🧮 WAXMAN-SMITS
+===============
+
+📌 Ecuación:
+Sw^n = (a * Rw * (1 + B * Qv)) / (φ^m * Rt)
+
+📊 Parámetros:
+• Todos los de Archie
+• B: Factor de movilidad iónica (típico: 0.045)
+• Qv: Capacidad de intercambio catiónico por unidad de volumen
+
+🎯 Aplicación:
+• Formaciones arcillosas con arcillas conductivas
+• Arcillas montmorilloníticas
+• Intercambio catiónico significativo
+
+⚠️ Limitaciones:
+• Requiere determinación de Qv
+• Complejo en la práctica
+• Parámetro B variable con temperatura
+
+📚 Referencias:
+• Waxman & Smits (1968): "Electrical Conductivities in Oil-Bearing Shaly Sands"
+            """,
+            
+            'dual_water': """
+🧮 DUAL WATER
+=============
+
+📌 Concepto:
+Modelo de dos tipos de agua:
+• Agua libre (en poros grandes)
+• Agua ligada (en arcillas)
+
+📊 Ecuación Simplificada:
+Sw_total = Sw_free + Sw_bound
+Sw_free = ((a * Rw) / (φeff^m * Rt))^(1/n)
+Sw_bound ≈ 0.1 * VCL
+
+🎯 Aplicación:
+• Formaciones con arcillas hidratadas
+• Distingue agua móvil vs inmóvil
+• Análisis de productividad
+
+⚠️ Limitaciones:
+• Modelo simplificado implementado
+• Requiere calibración local
+• Complejo determinar parámetros
+
+📚 Referencias:
+• Clavier et al. (1984): "Theoretical and Experimental Bases for the Dual-Water Model"
+            """,
+            
+            'indonesian': """
+🧮 ECUACIÓN INDONESA
+===================
+
+📌 Ecuación:
+1/√Rt = VCL/√Rsh + φ^(m/n) * Sw^n / √(a*Rw)
+
+📊 Parámetros:
+• Todos los de Archie y Simandoux
+• Desarrollada para formaciones fracturadas
+
+🎯 Aplicación:
+• Formaciones fracturadas
+• Porosidad secundaria
+• Geología compleja (vulcanoclásticos)
+
+⚠️ Limitaciones:
+• Específica para cierto tipo de rocas
+• Requiere calibración local
+• Complejidad en la aplicación
+
+📚 Referencias:
+• Poupon & Leveaux (1971): "Evaluation of Water Saturations in Shaly Formations"
+            """
+        }
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Información Detallada - {method.upper()}")
+        dialog.setMinimumSize(700, 500)
+        
+        layout = QVBoxLayout(dialog)
+        
+        text_widget = QTextEdit()
+        text_widget.setReadOnly(True)
+        text_widget.setFont(QFont("Courier New", 10))
+        text_widget.setPlainText(info_texts.get(method, "Información no disponible para este método"))
+        layout.addWidget(text_widget)
+        
+        close_btn = QPushButton("Cerrar")
+        close_btn.clicked.connect(dialog.accept)
+        layout.addWidget(close_btn)
+        
+        dialog.exec_()
     
     def preview_sw_calculation(self):
         """Vista previa del cálculo de Sw."""
-        QMessageBox.information(self, "Vista Previa", "Vista previa de Sw en desarrollo")
+        if not self.current_well:
+            QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
+            return
+        
+        try:
+            # Obtener parámetros de la UI
+            method = self.sw_method_combo.currentText()
+            rt_curve = self.sw_rt_combo.currentText()
+            porosity_curve = self.sw_porosity_combo.currentText()
+            
+            # Parámetros de Archie
+            a = self.sw_a_spinbox.value()
+            m = self.sw_m_spinbox.value()
+            n = self.sw_n_spinbox.value()
+            rw = self.sw_rw_spinbox.value()
+            rsh = self.sw_rsh_spinbox.value()
+            
+            # Validaciones básicas
+            if not rt_curve or rt_curve not in self.current_well.data.columns:
+                QMessageBox.warning(self, "Advertencia", f"Curva de resistividad '{rt_curve}' no encontrada")
+                return
+            
+            if not porosity_curve or porosity_curve not in self.current_well.data.columns:
+                QMessageBox.warning(self, "Advertencia", f"Curva de porosidad '{porosity_curve}' no encontrada")
+                return
+            
+            # Obtener muestra de datos (primeros 10 valores válidos)
+            rt_data = self.current_well.data[rt_curve].dropna().head(10)
+            porosity_data = self.current_well.data[porosity_curve].dropna().head(10)
+            
+            if len(rt_data) == 0 or len(porosity_data) == 0:
+                QMessageBox.warning(self, "Advertencia", "No hay datos válidos para la vista previa")
+                return
+            
+            # Calcular muestra con Archie simple
+            rt_sample = rt_data.iloc[0] if len(rt_data) > 0 else 10.0
+            phi_sample = porosity_data.iloc[0] if len(porosity_data) > 0 else 0.2
+            
+            sw_sample = ((a * rw) / (phi_sample**m * rt_sample))**(1/n)
+            sw_sample = np.clip(sw_sample, 0.0, 1.0)
+            
+            # Crear mensaje de vista previa
+            preview_msg = f"""
+🔍 VISTA PREVIA - CÁLCULO SW
+
+📊 Método seleccionado: {method.upper()}
+
+📈 Datos de muestra:
+• Resistividad (Rt): {rt_sample:.1f} ohm-m
+• Porosidad (φ): {phi_sample:.3f}
+
+🔧 Parámetros:
+• a (tortuosidad): {a}
+• m (cementación): {m}
+• n (saturación): {n}
+• Rw: {rw} ohm-m
+
+💧 Resultado (Archie Simple):
+• Sw calculada: {sw_sample:.3f} ({sw_sample*100:.1f}%)
+
+📝 Ecuación aplicada:
+Sw = ((a × Rw) / (φ^m × Rt))^(1/n)
+Sw = (({a} × {rw}) / ({phi_sample:.3f}^{m} × {rt_sample:.1f}))^(1/{n})
+
+⚠️ Esta es solo una muestra. El cálculo completo procesará todos los datos del pozo.
+            """
+            
+            QMessageBox.information(self, "Vista Previa SW", preview_msg)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error en vista previa:\n{str(e)}")
     
     def reset_sw_parameters(self):
         """Resetear parámetros de Sw a valores por defecto."""
@@ -2968,11 +4061,303 @@ Fecha: Julio 2025</p>
     
     def show_perm_method_details(self):
         """Mostrar detalles del método de permeabilidad."""
-        QMessageBox.information(self, "Info Permeabilidad", "Detalles de métodos de permeabilidad en desarrollo")
+        method = self.perm_method_combo.currentText()
+        
+        details = {
+            'timur': {
+                'title': 'Método de Timur',
+                'formula': 'K = C × (φ/Swi)^n',
+                'description': 'Correlación empírica desarrollada por Timur (1968) para areniscas.',
+                'parameters': {
+                    'C': 'Constante empírica (típico: 0.136)',
+                    'φ': 'Porosidad (fracción)',
+                    'Swi': 'Saturación de agua irreducible',
+                    'n': 'Exponente (típico: 4.4)'
+                },
+                'range': 'Mejor para areniscas limpias con porosidad > 10%',
+                'units': 'Permeabilidad en miliDarcys (mD)'
+            },
+            'kozeny_carman': {
+                'title': 'Ecuación de Kozeny-Carman',
+                'formula': 'K = (φ³/((1-φ)² × S²)) × (1/τ)',
+                'description': 'Ecuación fundamental basada en principios físicos de flujo en medios porosos.',
+                'parameters': {
+                    'φ': 'Porosidad (fracción)',
+                    'S': 'Superficie específica (área/volumen)',
+                    'τ': 'Tortuosidad (típico: 2-3)'
+                },
+                'range': 'Aplicable a todos los tipos de roca, requiere superficie específica',
+                'units': 'Permeabilidad en Darcys'
+            },
+            'wyllie_rose': {
+                'title': 'Método de Wyllie & Rose',
+                'formula': 'K = C × (φ⁶/Swi²)',
+                'description': 'Correlación empírica para carbonatos desarrollada por Wyllie & Rose (1950).',
+                'parameters': {
+                    'C': 'Constante empírica (típico: 79-318)',
+                    'φ': 'Porosidad (fracción)',
+                    'Swi': 'Saturación de agua irreducible'
+                },
+                'range': 'Optimizado para carbonatos, especialmente calizas',
+                'units': 'Permeabilidad en miliDarcys (mD)'
+            },
+            'coates_denoo': {
+                'title': 'Método de Coates & Denoo',
+                'formula': 'K = C × (φ⁴/Swi²)',
+                'description': 'Correlación para areniscas basada en análisis de núcleos.',
+                'parameters': {
+                    'C': 'Constante empírica (típico: 10-100)',
+                    'φ': 'Porosidad (fracción)',
+                    'Swi': 'Saturación de agua irreducible'
+                },
+                'range': 'Areniscas con buena clasificación granulométrica',
+                'units': 'Permeabilidad en miliDarcys (mD)'
+            },
+            'empirical': {
+                'title': 'Modelo Empírico General',
+                'formula': 'K = C × φᵃ × Swᵇ',
+                'description': 'Modelo flexible que permite ajustar exponentes según datos locales.',
+                'parameters': {
+                    'C': 'Constante empírica (calibrar localmente)',
+                    'φ': 'Porosidad (fracción)',
+                    'Sw': 'Saturación de agua',
+                    'a, b': 'Exponentes ajustables'
+                },
+                'range': 'Adaptable a cualquier litología con calibración',
+                'units': 'Permeabilidad en miliDarcys (mD)'
+            }
+        }
+        
+        if method not in details:
+            QMessageBox.warning(self, "Advertencia", f"Detalles no disponibles para método: {method}")
+            return
+        
+        info = details[method]
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Detalles - {info['title']}")
+        dialog.setMinimumSize(600, 500)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # Título
+        title_label = QLabel(f"🌊 {info['title']}")
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #2E8B57; margin: 10px;")
+        layout.addWidget(title_label)
+        
+        # Contenido
+        content = QTextEdit()
+        content.setReadOnly(True)
+        content.setFont(QFont("Segoe UI", 10))
+        
+        text = f"""
+<h3>📐 Fórmula:</h3>
+<p style="font-family: 'Courier New'; font-size: 12px; background: #f0f0f0; padding: 10px; border-radius: 5px;">
+<b>{info['formula']}</b>
+</p>
+
+<h3>📝 Descripción:</h3>
+<p>{info['description']}</p>
+
+<h3>⚙️ Parámetros:</h3>
+<ul>
+"""
+        for param, desc in info['parameters'].items():
+            text += f"<li><b>{param}:</b> {desc}</li>"
+        
+        text += f"""
+</ul>
+
+<h3>🎯 Rango de Aplicación:</h3>
+<p>{info['range']}</p>
+
+<h3>📏 Unidades:</h3>
+<p>{info['units']}</p>
+
+<h3>💡 Recomendaciones:</h3>
+<ul>
+<li>Calibrar constantes con datos de núcleos locales cuando sea posible</li>
+<li>Verificar consistencia con pruebas de pozo</li>
+<li>Considerar heterogeneidad litológica en la interpretación</li>
+<li>Usar múltiples métodos para validación cruzada</li>
+</ul>
+"""
+        
+        content.setHtml(text)
+        layout.addWidget(content)
+        
+        # Botón cerrar
+        close_btn = QPushButton("Cerrar")
+        close_btn.clicked.connect(dialog.accept)
+        layout.addWidget(close_btn)
+        
+        dialog.exec_()
     
     def classify_permeability(self):
-        """Clasificar valores de permeabilidad."""
-        QMessageBox.information(self, "Clasificación", "Clasificación de permeabilidad en desarrollo")
+        """Clasificar valores de permeabilidad según estándares de la industria."""
+        try:
+            if not self.current_well:
+                QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
+                return
+            
+            # Buscar curvas de permeabilidad calculadas
+            perm_curves = [col for col in self.current_well.data.columns if 'PERM' in col.upper()]
+            
+            if not perm_curves:
+                QMessageBox.warning(self, "Advertencia", "No se encontraron curvas de permeabilidad calculadas")
+                return
+            
+            # Seleccionar curva más reciente
+            perm_curve = perm_curves[-1]
+            perm_data = self.current_well.data[perm_curve].dropna()
+            
+            if len(perm_data) == 0:
+                QMessageBox.warning(self, "Advertencia", f"No hay datos válidos en {perm_curve}")
+                return
+            
+            # Clasificación estándar de permeabilidad (en mD)
+            classifications = {
+                'Excelente': {'min': 1000, 'max': float('inf'), 'color': '#228B22'},
+                'Muy Buena': {'min': 100, 'max': 1000, 'color': '#32CD32'},
+                'Buena': {'min': 10, 'max': 100, 'color': '#90EE90'},
+                'Regular': {'min': 1, 'max': 10, 'color': '#FFD700'},
+                'Pobre': {'min': 0.1, 'max': 1, 'color': '#FFA500'},
+                'Muy Pobre': {'min': 0.01, 'max': 0.1, 'color': '#FF6347'},
+                'Impermeable': {'min': 0, 'max': 0.01, 'color': '#DC143C'}
+            }
+            
+            # Calcular distribución por categorías
+            results = {}
+            total_points = len(perm_data)
+            
+            for category, limits in classifications.items():
+                mask = (perm_data >= limits['min']) & (perm_data < limits['max'])
+                count = mask.sum()
+                percentage = (count / total_points) * 100
+                results[category] = {
+                    'count': count,
+                    'percentage': percentage,
+                    'color': limits['color']
+                }
+            
+            # Crear curva de clasificación categórica
+            classification_data = np.full(len(self.current_well.data), np.nan, dtype=object)
+            perm_full = self.current_well.data[perm_curve]
+            
+            for i, perm_val in enumerate(perm_full):
+                if pd.notna(perm_val):
+                    for category, limits in classifications.items():
+                        if limits['min'] <= perm_val < limits['max']:
+                            classification_data[i] = category
+                            break
+            
+            # Agregar curva de clasificación al pozo
+            class_curve_name = f"{perm_curve}_CLASS"
+            success = self.current_well.add_curve(
+                curve_name=class_curve_name,
+                data=classification_data,
+                units='category',
+                description=f'Permeability classification for {perm_curve}'
+            )
+            
+            if success:
+                self.log_activity(f"📊 Clasificación creada: {class_curve_name}")
+            
+            # Mostrar resultados en un diálogo detallado
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"Clasificación de Permeabilidad - {perm_curve}")
+            dialog.setMinimumSize(500, 600)
+            
+            layout = QVBoxLayout(dialog)
+            
+            # Título
+            title = QLabel("📊 Clasificación de Permeabilidad")
+            title.setStyleSheet("font-size: 16px; font-weight: bold; margin: 10px;")
+            layout.addWidget(title)
+            
+            # Estadísticas generales
+            stats_text = QTextEdit()
+            stats_text.setMaximumHeight(150)
+            stats_text.setReadOnly(True)
+            
+            stats_content = f"""
+<b>Curva analizada:</b> {perm_curve}<br>
+<b>Total de puntos:</b> {total_points}<br>
+<b>Rango:</b> {perm_data.min():.3f} - {perm_data.max():.3f} mD<br>
+<b>Promedio:</b> {perm_data.mean():.3f} mD<br>
+<b>Mediana:</b> {perm_data.median():.3f} mD<br>
+<b>Desviación estándar:</b> {perm_data.std():.3f} mD
+"""
+            stats_text.setHtml(stats_content)
+            layout.addWidget(stats_text)
+            
+            # Tabla de distribución
+            table_label = QLabel("📈 Distribución por Categorías:")
+            table_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+            layout.addWidget(table_label)
+            
+            results_text = QTextEdit()
+            results_text.setReadOnly(True)
+            
+            table_content = "<table border='1' style='border-collapse: collapse; width: 100%;'>"
+            table_content += "<tr style='background-color: #f0f0f0;'><th>Clasificación</th><th>Rango (mD)</th><th>Puntos</th><th>Porcentaje</th></tr>"
+            
+            for category, limits in classifications.items():
+                result = results[category]
+                color = result['color']
+                range_text = f"{limits['min']:.3f} - {limits['max']:.1f}" if limits['max'] != float('inf') else f"> {limits['min']:.3f}"
+                
+                table_content += f"""
+                <tr>
+                    <td style='background-color: {color}; color: white; font-weight: bold; padding: 5px;'>{category}</td>
+                    <td style='padding: 5px;'>{range_text}</td>
+                    <td style='text-align: center; padding: 5px;'>{result['count']}</td>
+                    <td style='text-align: center; padding: 5px;'>{result['percentage']:.1f}%</td>
+                </tr>
+                """
+            
+            table_content += "</table>"
+            results_text.setHtml(table_content)
+            layout.addWidget(results_text)
+            
+            # Interpretación automática
+            interpretation = QLabel("🔍 Interpretación Automática:")
+            interpretation.setStyleSheet("font-weight: bold; margin-top: 10px;")
+            layout.addWidget(interpretation)
+            
+            interp_text = QTextEdit()
+            interp_text.setMaximumHeight(100)
+            interp_text.setReadOnly(True)
+            
+            # Lógica de interpretación
+            excellent_good = results['Excelente']['percentage'] + results['Muy Buena']['percentage'] + results['Buena']['percentage']
+            poor_imperme = results['Pobre']['percentage'] + results['Muy Pobre']['percentage'] + results['Impermeable']['percentage']
+            
+            if excellent_good > 60:
+                interp = "🟢 Reservorio de alta calidad con excelente potencial de flujo."
+            elif excellent_good > 30:
+                interp = "🟡 Reservorio de calidad moderada a buena."
+            elif poor_imperme > 50:
+                interp = "🔴 Reservorio de baja calidad con limitaciones de flujo significativas."
+            else:
+                interp = "🟡 Reservorio de calidad variable, requiere análisis detallado."
+            
+            interp_text.setPlainText(interp)
+            layout.addWidget(interp_text)
+            
+            # Botón cerrar
+            close_btn = QPushButton("Cerrar")
+            close_btn.clicked.connect(dialog.accept)
+            layout.addWidget(close_btn)
+            
+            dialog.exec_()
+            
+            # Actualizar UI
+            self.update_curves_list()
+            
+        except Exception as e:
+            self.log_activity(f"❌ Error clasificando permeabilidad: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error en clasificación de permeabilidad:\n{str(e)}")
     
     def reset_perm_parameters(self):
         """Resetear parámetros de permeabilidad."""
@@ -3000,24 +4385,811 @@ Fecha: Julio 2025</p>
             self.lithology_analysis_description.setText(descriptions.get(analysis, "Análisis no implementado"))
     
     def show_lithology_analysis_details(self):
-        """Mostrar detalles del análisis litológico."""
-        QMessageBox.information(self, "Info Litología", "Detalles de análisis litológico en desarrollo")
+        """Mostrar detalles completos del análisis litológico."""
+        info_text = """
+<h2>🪨 Análisis Litológico en PyPozo</h2>
+
+<h3>📊 Métodos de Análisis Disponibles</h3>
+
+<h4>1. 📈 Análisis por Crossplots</h4>
+<p><b>¿Qué es?</b> Gráficos de correlación entre diferentes registros de pozo para identificar patrones litológicos.</p>
+<p><b>Tipos de Crossplots:</b></p>
+<ul>
+<li><b>Neutrón vs Densidad:</b> Identifica areniscas, calizas, dolomitas y efectos de gas</li>
+<li><b>Neutrón vs PEF:</b> Separación precisa de minerales por propiedades nucleares</li>
+<li><b>Densidad vs PEF:</b> Análisis mineralógico detallado independiente de porosidad</li>
+<li><b>GR vs PEF:</b> Discriminación entre arcillas y minerales pesados</li>
+<li><b>Thorium vs Potasio:</b> Análisis de tipos de arcilla y ambientes deposicionales</li>
+</ul>
+<p><b>Ventajas:</b> Identificación visual rápida, validación cruzada entre registros, detección de zonas anómalas</p>
+
+<h4>2. 🎯 Clasificación de Facies Petrofísicas</h4>
+<p><b>¿Qué es?</b> Agrupamiento automático de intervalos con propiedades similares para definir unidades de flujo.</p>
+<p><b>Métodos de Clasificación:</b></p>
+<ul>
+<li><b>K-means Clustering:</b> Agrupamiento no supervisado basado en múltiples propiedades</li>
+<li><b>Análisis Discriminante:</b> Clasificación supervisada con muestras de referencia</li>
+<li><b>Redes Neuronales:</b> Reconocimiento de patrones complejos en datos</li>
+<li><b>Árboles de Decisión:</b> Reglas lógicas para clasificación basada en umbrales</li>
+</ul>
+<p><b>Aplicaciones:</b> Definición de unidades de flujo, caracterización de heterogeneidades, optimización de terminaciones</p>
+
+<h4>3. 🔬 Identificación Mineral</h4>
+<p><b>¿Qué es?</b> Determinación cuantitativa de composición mineralógica usando respuestas específicas de registros.</p>
+<p><b>Técnicas de Identificación:</b></p>
+<ul>
+<li><b>Inversión de Registros:</b> Solución de ecuaciones simultáneas para fracciones minerales</li>
+<li><b>Análisis Espectral:</b> Uso de registros especializados (ECS, Litho-Density)</li>
+<li><b>Modelos Probabilísticos:</b> Asignación de probabilidades a diferentes litologías</li>
+<li><b>Análisis Multi-mineral:</b> Separación de mezclas complejas de minerales</li>
+</ul>
+<p><b>Resultados:</b> Porcentajes de cuarzo, calcita, dolomita, arcillas, feldespatos, etc.</p>
+
+<h4>4. 🏆 Evaluación de Calidad de Reservorio</h4>
+<p><b>¿Qué es?</b> Clasificación integral de intervalos según su potencial de producción de hidrocarburos.</p>
+<p><b>Parámetros de Evaluación:</b></p>
+<ul>
+<li><b>Índice de Porosidad:</b> Clasificación de capacidad de almacenamiento</li>
+<li><b>Índice de Permeabilidad:</b> Evaluación de capacidad de flujo</li>
+<li><b>RQI (Reservoir Quality Index):</b> Índice integral de calidad</li>
+<li><b>Índice de Arcillosidad:</b> Impacto de arcillas en las propiedades</li>
+<li><b>Saturación de Hidrocarburos:</b> Potencial de producción comercial</li>
+</ul>
+<p><b>Clasificaciones Resultantes:</b> Excelente, Buena, Regular, Pobre, No-reservorio</p>
+
+<h4>5. 🌊 Análisis de Ambiente Deposicional</h4>
+<p><b>¿Qué es?</b> Interpretación del contexto geológico de depositación basado en patrones de registros.</p>
+<p><b>Indicadores Utilizados:</b></p>
+<ul>
+<li><b>Patrones de GR:</b> Tendencias transgresivas/regresivas, ciclicidad</li>
+<li><b>Espectroscopía de GR:</b> Relaciones Th/K para tipos de arcilla</li>
+<li><b>Texturas de Resistividad:</b> Continuidad lateral, heterogeneidades</li>
+<li><b>Variabilidad de Porosidad:</b> Energía del ambiente deposicional</li>
+</ul>
+<p><b>Ambientes Identificados:</b> Fluvial, deltaico, marino somero, turbidítico, eólico, lacustre</p>
+
+<h3>🔧 Flujo de Trabajo Integrado</h3>
+<ol>
+<li><b>Control de Calidad:</b> Validación de registros y correcciones ambientales</li>
+<li><b>Análisis Exploratorio:</b> Crossplots para identificar patrones principales</li>
+<li><b>Clasificación Automática:</b> Agrupamiento de facies petrofísicas</li>
+<li><b>Identificación Mineral:</b> Cuantificación de composición litológica</li>
+<li><b>Evaluación de Calidad:</b> Clasificación de intervalos productivos</li>
+<li><b>Interpretación Geológica:</b> Contexto deposicional y estructural</li>
+<li><b>Validación y Reporte:</b> Comparación con datos independientes</li>
+</ol>
+
+<h3>💡 Mejores Prácticas</h3>
+<ul>
+<li><b>Validación Cruzada:</b> Use múltiples métodos para confirmar interpretaciones</li>
+<li><b>Calibración Local:</b> Ajuste modelos con datos de núcleos y pruebas de pozo</li>
+<li><b>Análisis de Incertidumbre:</b> Evalúe confiabilidad de resultados</li>
+<li><b>Integración de Escalas:</b> Combine datos de pozo, núcleos y sísmica</li>
+<li><b>Actualización Continua:</b> Refine interpretaciones con nueva información</li>
+</ul>
+
+<p><i>💻 PyPozo - Análisis litológico profesional para caracterización de reservorios</i></p>
+"""
+        
+        # Crear ventana de información con scroll
+        dialog = QDialog(self)
+        dialog.setWindowTitle("📚 Guía Completa - Análisis Litológico")
+        dialog.resize(800, 600)
+        
+        layout = QVBoxLayout()
+        
+        # Área de texto con scroll
+        text_widget = QTextEdit()
+        text_widget.setHtml(info_text)
+        text_widget.setReadOnly(True)
+        
+        layout.addWidget(text_widget)
+        
+        # Botón cerrar
+        btn_close = QPushButton("Cerrar")
+        btn_close.clicked.connect(dialog.accept)
+        layout.addWidget(btn_close)
+        
+        dialog.setLayout(layout)
+        dialog.exec_()
     
     def generate_lithology_crossplots(self):
         """Generar crossplots litológicos."""
-        QMessageBox.information(self, "Crossplots", "Generación de crossplots en desarrollo")
+        try:
+            if not self.current_well:
+                QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
+                return
+            
+            # Obtener curvas seleccionadas
+            rhob_curve = self.lith_rhob_combo.currentText()
+            nphi_curve = self.lith_nphi_combo.currentText()
+            pef_curve = self.lith_pef_combo.currentText()
+            gr_curve = self.lith_gr_combo.currentText()
+            
+            # Validar que tengamos al menos RHOB y NPHI
+            if not rhob_curve or rhob_curve not in self.current_well.data.columns:
+                QMessageBox.warning(self, "Advertencia", f"Curva RHOB '{rhob_curve}' no disponible")
+                return
+            
+            if not nphi_curve or nphi_curve not in self.current_well.data.columns:
+                QMessageBox.warning(self, "Advertencia", f"Curva NPHI '{nphi_curve}' no disponible")
+                return
+            
+            # Usar el analizador de litología
+            rhob_data = self.current_well.data[rhob_curve]
+            nphi_data = self.current_well.data[nphi_curve]
+            pef_data = self.current_well.data[pef_curve] if pef_curve and pef_curve in self.current_well.data.columns else None
+            
+            self.log_activity(f"📊 Generando crossplots litológicos...")
+            
+            # Realizar análisis neutrón-densidad
+            nd_result = self.lithology_analyzer.neutron_density_analysis(
+                rhob=rhob_data,
+                nphi=nphi_data,
+                pe=pef_data,
+                fluid_type='fresh_water'
+            )
+            
+            if not nd_result.get('success', False):
+                QMessageBox.critical(self, "Error", f"Error en análisis N-D: {nd_result.get('error', 'Error desconocido')}")
+                return
+            
+            # Limpiar figura
+            self.figure.clear()
+            
+            # Crear subplots para crossplots
+            if pef_data is not None:
+                # Con PEF: 3 crossplots
+                gs = self.figure.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+                ax1 = self.figure.add_subplot(gs[0, 0])  # NPHI vs RHOB
+                ax2 = self.figure.add_subplot(gs[0, 1])  # PEF vs RHOB
+                ax3 = self.figure.add_subplot(gs[1, :])  # NPHI vs PEF
+            else:
+                # Sin PEF: 1 crossplot principal
+                ax1 = self.figure.add_subplot(111)
+                ax2 = ax3 = None
+            
+            # Preparar datos válidos
+            valid_mask = (~np.isnan(rhob_data)) & (~np.isnan(nphi_data))
+            rhob_valid = rhob_data[valid_mask]
+            nphi_valid = nphi_data[valid_mask]
+            
+            if len(rhob_valid) == 0:
+                QMessageBox.warning(self, "Advertencia", "No hay datos válidos para generar crossplots")
+                return
+            
+            # Crossplot 1: NPHI vs RHOB (Principal)
+            scatter = ax1.scatter(rhob_valid, nphi_valid, c=rhob_valid, cmap='viridis', alpha=0.6, s=20)
+            ax1.set_xlabel('RHOB (g/cm³)')
+            ax1.set_ylabel('NPHI (fracción)')
+            ax1.set_title('Crossplot Neutrón-Densidad')
+            ax1.grid(True, alpha=0.3)
+            
+            # Añadir líneas de referencia mineralógica
+            rhob_range = np.linspace(1.8, 3.0, 100)
+            
+            # Líneas de cuarzo
+            ax1.plot([2.65, 2.65], [ax1.get_ylim()[0], ax1.get_ylim()[1]], 'r--', alpha=0.5, label='Cuarzo')
+            # Líneas de calcita
+            ax1.plot([2.71, 2.71], [ax1.get_ylim()[0], ax1.get_ylim()[1]], 'b--', alpha=0.5, label='Calcita')
+            # Líneas de dolomita
+            ax1.plot([2.87, 2.87], [ax1.get_ylim()[0], ax1.get_ylim()[1]], 'g--', alpha=0.5, label='Dolomita')
+            
+            ax1.legend(fontsize=8)
+            
+            # Colorbar para densidad
+            cbar1 = self.figure.colorbar(scatter, ax=ax1)
+            cbar1.set_label('RHOB (g/cm³)')
+            
+            # Crossplot 2: PEF vs RHOB (si disponible)
+            if ax2 is not None and pef_data is not None:
+                pef_valid = pef_data[valid_mask & (~np.isnan(pef_data))]
+                rhob_pef = rhob_valid[~np.isnan(pef_data[valid_mask])]
+                
+                if len(pef_valid) > 0:
+                    scatter2 = ax2.scatter(rhob_pef, pef_valid, c=pef_valid, cmap='plasma', alpha=0.6, s=20)
+                    ax2.set_xlabel('RHOB (g/cm³)')
+                    ax2.set_ylabel('PEF (barns/electron)')
+                    ax2.set_title('Crossplot PEF-Densidad')
+                    ax2.grid(True, alpha=0.3)
+                    
+                    # Líneas de referencia mineralógica para PEF
+                    ax2.axhline(y=1.81, color='r', linestyle='--', alpha=0.5, label='Cuarzo (1.81)')
+                    ax2.axhline(y=5.08, color='b', linestyle='--', alpha=0.5, label='Calcita (5.08)')
+                    ax2.axhline(y=3.14, color='g', linestyle='--', alpha=0.5, label='Dolomita (3.14)')
+                    ax2.axhline(y=2.8, color='orange', linestyle='--', alpha=0.5, label='Arcilla (2.8)')
+                    
+                    ax2.legend(fontsize=8)
+                    
+                    cbar2 = self.figure.colorbar(scatter2, ax=ax2)
+                    cbar2.set_label('PEF (barns/electron)')
+            
+            # Crossplot 3: NPHI vs PEF (si disponible)
+            if ax3 is not None and pef_data is not None:
+                nphi_pef = nphi_valid[~np.isnan(pef_data[valid_mask])]
+                
+                if len(pef_valid) > 0:
+                    scatter3 = ax3.scatter(nphi_pef, pef_valid, c=rhob_pef, cmap='coolwarm', alpha=0.6, s=20)
+                    ax3.set_xlabel('NPHI (fracción)')
+                    ax3.set_ylabel('PEF (barns/electron)')
+                    ax3.set_title('Crossplot Neutrón-PEF')
+                    ax3.grid(True, alpha=0.3)
+                    
+                    cbar3 = self.figure.colorbar(scatter3, ax=ax3)
+                    cbar3.set_label('RHOB (g/cm³)')
+            
+            # Título general
+            well_name = self.current_well.name or "Pozo Actual"
+            self.figure.suptitle(f'Crossplots Litológicos - {well_name}', fontsize=14, fontweight='bold')
+            
+            # Actualizar canvas
+            self.canvas.draw()
+            
+            # Mostrar resultados en el área de texto
+            self.lithology_results_text.clear()
+            self.lithology_results_text.append("✅ Crossplots litológicos generados")
+            self.lithology_results_text.append(f"📊 Datos procesados: {len(rhob_valid)} puntos")
+            self.lithology_results_text.append(f"📈 Curvas utilizadas:")
+            self.lithology_results_text.append(f"   • RHOB: {rhob_curve}")
+            self.lithology_results_text.append(f"   • NPHI: {nphi_curve}")
+            if pef_data is not None:
+                self.lithology_results_text.append(f"   • PEF: {pef_curve}")
+            
+            # Añadir estadísticas básicas
+            self.lithology_results_text.append(f"\n📊 Estadísticas RHOB:")
+            self.lithology_results_text.append(f"   • Promedio: {rhob_valid.mean():.3f} g/cm³")
+            self.lithology_results_text.append(f"   • Rango: {rhob_valid.min():.3f} - {rhob_valid.max():.3f} g/cm³")
+            
+            self.lithology_results_text.append(f"\n📊 Estadísticas NPHI:")
+            self.lithology_results_text.append(f"   • Promedio: {nphi_valid.mean():.3f}")
+            self.lithology_results_text.append(f"   • Rango: {nphi_valid.min():.3f} - {nphi_valid.max():.3f}")
+            
+            if 'warnings' in nd_result and nd_result['warnings']:
+                self.lithology_results_text.append(f"\n⚠️ Advertencias QC:")
+                for warning in nd_result['warnings']:
+                    self.lithology_results_text.append(f"   • {warning}")
+            
+            self.log_activity(f"✅ Crossplots generados exitosamente")
+            
+        except Exception as e:
+            self.log_activity(f"❌ Error generando crossplots: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error generando crossplots litológicos:\n{str(e)}")
     
     def classify_facies(self):
         """Clasificar facies litológicas."""
-        QMessageBox.information(self, "Facies", "Clasificación de facies en desarrollo")
+        try:
+            if not self.current_well:
+                QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
+                return
+            
+            # Obtener parámetros de la UI
+            n_facies = self.lith_n_facies_spinbox.value()
+            auto_detect = self.lith_auto_facies.isChecked()
+            vcl_cutoff = self.lith_vcl_cutoff_spinbox.value()
+            porosity_cutoff = self.lith_porosity_cutoff_spinbox.value()
+            
+            # Obtener curvas
+            gr_curve = self.lith_gr_combo.currentText()
+            rhob_curve = self.lith_rhob_combo.currentText()
+            nphi_curve = self.lith_nphi_combo.currentText()
+            pef_curve = self.lith_pef_combo.currentText()
+            
+            # Verificar curvas mínimas requeridas
+            required_curves = {'GR': gr_curve, 'RHOB': rhob_curve, 'NPHI': nphi_curve}
+            missing_curves = []
+            
+            for curve_type, curve_name in required_curves.items():
+                if not curve_name or curve_name not in self.current_well.data.columns:
+                    missing_curves.append(curve_type)
+            
+            if missing_curves:
+                QMessageBox.warning(self, "Advertencia", 
+                                  f"Curvas faltantes para clasificación: {', '.join(missing_curves)}")
+                return
+            
+            self.log_activity(f"🎯 Clasificando facies litológicas...")
+            
+            # Preparar datos
+            data_for_clustering = []
+            curve_names = []
+            
+            # GR (normalizado)
+            gr_data = self.current_well.data[gr_curve]
+            gr_norm = (gr_data - gr_data.min()) / (gr_data.max() - gr_data.min())
+            data_for_clustering.append(gr_norm)
+            curve_names.append('GR_norm')
+            
+            # RHOB
+            rhob_data = self.current_well.data[rhob_curve]
+            data_for_clustering.append(rhob_data)
+            curve_names.append('RHOB')
+            
+            # NPHI
+            nphi_data = self.current_well.data[nphi_curve]
+            data_for_clustering.append(nphi_data)
+            curve_names.append('NPHI')
+            
+            # PEF si está disponible
+            if pef_curve and pef_curve in self.current_well.data.columns:
+                pef_data = self.current_well.data[pef_curve]
+                data_for_clustering.append(pef_data)
+                curve_names.append('PEF')
+            
+            # Crear matriz de datos
+            X = np.column_stack(data_for_clustering)
+            
+            # Remover filas con NaN
+            valid_mask = ~np.isnan(X).any(axis=1)
+            X_clean = X[valid_mask]
+            
+            if len(X_clean) < 10:
+                QMessageBox.warning(self, "Advertencia", "Datos insuficientes para clasificación de facies")
+                return
+            
+            # Normalizar los datos para clustering
+            from sklearn.preprocessing import StandardScaler
+            from sklearn.cluster import KMeans
+            from sklearn.metrics import silhouette_score
+            
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X_clean)
+            
+            # Determinar número óptimo de clusters si auto_detect está habilitado
+            if auto_detect:
+                silhouette_scores = []
+                inertias = []
+                k_range = range(2, min(9, len(X_clean) // 10))  # Máximo 8 clusters
+                
+                if len(k_range) == 0:
+                    k_range = [2, 3]
+                
+                for k in k_range:
+                    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+                    cluster_labels = kmeans.fit_predict(X_scaled)
+                    
+                    if len(np.unique(cluster_labels)) > 1:  # Asegurar que hay múltiples clusters
+                        sil_score = silhouette_score(X_scaled, cluster_labels)
+                        silhouette_scores.append(sil_score)
+                        inertias.append(kmeans.inertia_)
+                    else:
+                        silhouette_scores.append(0)
+                        inertias.append(float('inf'))
+                
+                # Seleccionar k óptimo basado en silhouette score
+                if silhouette_scores:
+                    best_k = k_range[np.argmax(silhouette_scores)]
+                    n_facies = best_k
+                    self.log_activity(f"🔍 Número óptimo de facies detectado: {n_facies}")
+            
+            # Realizar clustering final
+            kmeans = KMeans(n_clusters=n_facies, random_state=42, n_init=10)
+            cluster_labels = kmeans.fit_predict(X_scaled)
+            
+            # Crear array de facies para todo el dataset
+            facies_full = np.full(len(self.current_well.data), np.nan)
+            facies_full[valid_mask] = cluster_labels
+            
+            # Asignar nombres descriptivos a las facies basados en características
+            facies_names = self._assign_facies_names(kmeans.cluster_centers_, scaler, curve_names)
+            
+            # Crear curva de facies categórica
+            facies_categorical = np.full(len(self.current_well.data), 'Unknown', dtype='<U20')
+            for i, facies_id in enumerate(facies_full):
+                if not np.isnan(facies_id):
+                    facies_categorical[i] = facies_names[int(facies_id)]
+            
+            # Agregar curva de facies al pozo
+            facies_curve_name = "FACIES_CLASS"
+            success = self.current_well.add_curve(
+                curve_name=facies_curve_name,
+                data=facies_categorical,
+                units='category',
+                description=f'Petrophysical facies classification ({n_facies} facies)'
+            )
+            
+            if not success:
+                QMessageBox.critical(self, "Error", f"No se pudo agregar curva {facies_curve_name}")
+                return
+            
+            # Calcular estadísticas por facies
+            facies_stats = {}
+            for i, facies_name in enumerate(facies_names):
+                mask = cluster_labels == i
+                if np.sum(mask) > 0:
+                    stats = {
+                        'count': np.sum(mask),
+                        'percentage': (np.sum(mask) / len(cluster_labels)) * 100,
+                        'avg_gr': np.mean(gr_data[valid_mask][mask]),
+                        'avg_rhob': np.mean(rhob_data[valid_mask][mask]),
+                        'avg_nphi': np.mean(nphi_data[valid_mask][mask])
+                    }
+                    
+                    if pef_curve and pef_curve in self.current_well.data.columns:
+                        pef_facies = pef_data[valid_mask][mask]
+                        stats['avg_pef'] = np.mean(pef_facies[~np.isnan(pef_facies)])
+                    
+                    facies_stats[facies_name] = stats
+            
+            # Mostrar resultados
+            self.lithology_results_text.clear()
+            self.lithology_results_text.append(f"✅ Clasificación de facies completada")
+            self.lithology_results_text.append(f"🎯 Número de facies: {n_facies}")
+            self.lithology_results_text.append(f"📊 Puntos clasificados: {len(cluster_labels)}")
+            self.lithology_results_text.append(f"📈 Curva creada: {facies_curve_name}")
+            
+            if auto_detect:
+                self.lithology_results_text.append(f"🔍 Detección automática activada")
+            
+            self.lithology_results_text.append(f"\n📊 Distribución de Facies:")
+            
+            for facies_name, stats in facies_stats.items():
+                self.lithology_results_text.append(f"\n🏷️ {facies_name}:")
+                self.lithology_results_text.append(f"   • Puntos: {stats['count']} ({stats['percentage']:.1f}%)")
+                self.lithology_results_text.append(f"   • GR promedio: {stats['avg_gr']:.1f}")
+                self.lithology_results_text.append(f"   • RHOB promedio: {stats['avg_rhob']:.3f} g/cm³")
+                self.lithology_results_text.append(f"   • NPHI promedio: {stats['avg_nphi']:.3f}")
+                if 'avg_pef' in stats:
+                    self.lithology_results_text.append(f"   • PEF promedio: {stats['avg_pef']:.2f}")
+            
+            # Generar gráfico de facies si hay espacio
+            self._plot_facies_visualization(cluster_labels, X_clean, curve_names, facies_names)
+            
+            self.log_activity(f"✅ Facies clasificadas: {facies_curve_name}")
+            self.update_curves_list()
+            
+        except ImportError:
+            QMessageBox.critical(self, "Error", 
+                               "Scikit-learn no está disponible. Instale con: pip install scikit-learn")
+        except Exception as e:
+            self.log_activity(f"❌ Error clasificando facies: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error en clasificación de facies:\n{str(e)}")
+    
+    def _assign_facies_names(self, cluster_centers, scaler, curve_names):
+        """Asignar nombres descriptivos a las facies basados en características del cluster."""
+        n_clusters = len(cluster_centers)
+        facies_names = []
+        
+        # Desnormalizar los centros para interpretación
+        centers_original = scaler.inverse_transform(cluster_centers)
+        
+        for i, center in enumerate(centers_original):
+            # Obtener índices de las curvas
+            gr_idx = curve_names.index('GR_norm') if 'GR_norm' in curve_names else 0
+            rhob_idx = curve_names.index('RHOB') if 'RHOB' in curve_names else 1
+            nphi_idx = curve_names.index('NPHI') if 'NPHI' in curve_names else 2
+            pef_idx = curve_names.index('PEF') if 'PEF' in curve_names else None
+            
+            gr_val = center[gr_idx]
+            rhob_val = center[rhob_idx]
+            nphi_val = center[nphi_idx]
+            pef_val = center[pef_idx] if pef_idx is not None else None
+            
+            # Lógica de clasificación basada en propiedades
+            if gr_val < 0.3:  # Bajo GR
+                if rhob_val > 2.7:  # Alta densidad
+                    if pef_val and pef_val > 4.0:
+                        name = "Carbonato_Limpio"
+                    else:
+                        name = "Arenisca_Limpia"
+                else:
+                    name = "Arena_Porosa"
+            elif gr_val < 0.7:  # GR moderado
+                if rhob_val > 2.6:
+                    name = "Carbonato_Arcilloso"
+                else:
+                    name = "Arenisca_Arcillosa"
+            else:  # Alto GR
+                if nphi_val > 0.3:
+                    name = "Lutita_Porosa"
+                else:
+                    name = "Lutita_Compacta"
+            
+            facies_names.append(f"F{i+1}_{name}")
+        
+        return facies_names
+    
+    def _plot_facies_visualization(self, cluster_labels, X_clean, curve_names, facies_names):
+        """Crear visualización de las facies clasificadas."""
+        try:
+            # Limpiar figura para mostrar facies
+            self.figure.clear()
+            
+            # Crear subplot para visualización 2D principal
+            ax = self.figure.add_subplot(111)
+            
+            # Usar las dos primeras componentes más significativas
+            # Típicamente GR vs RHOB o NPHI vs RHOB
+            if len(curve_names) >= 2:
+                x_data = X_clean[:, 1]  # RHOB generalmente
+                y_data = X_clean[:, 2]  # NPHI generalmente
+                x_label = curve_names[1] if len(curve_names) > 1 else 'Component 1'
+                y_label = curve_names[2] if len(curve_names) > 2 else 'Component 2'
+            else:
+                x_data = X_clean[:, 0]
+                y_data = X_clean[:, 1] if X_clean.shape[1] > 1 else X_clean[:, 0]
+                x_label = curve_names[0] if curve_names else 'Component 1'
+                y_label = curve_names[1] if len(curve_names) > 1 else 'Component 2'
+            
+            # Definir colores para las facies
+            colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray']
+            
+            # Plotear cada facies con color diferente
+            for i, facies_name in enumerate(facies_names):
+                mask = cluster_labels == i
+                if np.sum(mask) > 0:
+                    color = colors[i % len(colors)]
+                    ax.scatter(x_data[mask], y_data[mask], 
+                             c=color, alpha=0.6, s=20, label=facies_name)
+            
+            ax.set_xlabel(x_label)
+            ax.set_ylabel(y_label)
+            ax.set_title(f'Clasificación de Facies Petrofísicas - {len(facies_names)} Facies')
+            ax.grid(True, alpha=0.3)
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+            
+            # Ajustar layout
+            self.figure.tight_layout()
+            
+            # Actualizar canvas
+            self.canvas.draw()
+            
+        except Exception as e:
+            # Si falla la visualización, continuar sin ella
+            self.log_activity(f"⚠️ Error en visualización de facies: {str(e)}")
     
     def run_comprehensive_analysis(self):
         """Ejecutar análisis petrofísico completo."""
         if not self.current_well:
             QMessageBox.warning(self, "Advertencia", "No hay pozo seleccionado")
             return
-        self.log_activity("� Función de análisis completo en desarrollo")
-        QMessageBox.information(self, "Desarrollo", "Función de análisis completo en desarrollo")
+        
+        try:
+            # Mostrar diálogo de confirmación con opciones
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Análisis Petrofísico Completo")
+            dialog.setMinimumSize(400, 300)
+            
+            layout = QVBoxLayout(dialog)
+            
+            # Título
+            title = QLabel("🔬 Análisis Petrofísico Completo")
+            title.setStyleSheet("font-size: 16px; font-weight: bold; color: #2E8B57; margin: 10px;")
+            layout.addWidget(title)
+            
+            # Descripción
+            desc = QLabel("Este análisis ejecutará todos los cálculos petrofísicos disponibles:")
+            layout.addWidget(desc)
+            
+            # Lista de análisis
+            analysis_list = QLabel("""
+• Volumen de Arcilla (VCL)
+• Porosidad Efectiva (PHIE)
+• Saturación de Agua (Sw)
+• Permeabilidad (múltiples métodos)
+• Análisis Litológico Completo
+• Clasificación de Facies
+• Evaluación de Calidad de Reservorio
+            """)
+            analysis_list.setStyleSheet("margin: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 5px;")
+            layout.addWidget(analysis_list)
+            
+            # Opciones
+            options_group = QGroupBox("Opciones de Análisis")
+            options_layout = QVBoxLayout(options_group)
+            
+            self.comp_calc_vcl = QCheckBox("Calcular VCL")
+            self.comp_calc_vcl.setChecked(True)
+            options_layout.addWidget(self.comp_calc_vcl)
+            
+            self.comp_calc_porosity = QCheckBox("Calcular Porosidad")
+            self.comp_calc_porosity.setChecked(True)
+            options_layout.addWidget(self.comp_calc_porosity)
+            
+            self.comp_calc_sw = QCheckBox("Calcular Saturación de Agua")
+            self.comp_calc_sw.setChecked(True)
+            options_layout.addWidget(self.comp_calc_sw)
+            
+            self.comp_calc_perm = QCheckBox("Calcular Permeabilidad")
+            self.comp_calc_perm.setChecked(True)
+            options_layout.addWidget(self.comp_calc_perm)
+            
+            self.comp_lithology_analysis = QCheckBox("Análisis Litológico Completo")
+            self.comp_lithology_analysis.setChecked(True)
+            options_layout.addWidget(self.comp_lithology_analysis)
+            
+            layout.addWidget(options_group)
+            
+            # Botones
+            buttons_layout = QHBoxLayout()
+            
+            run_btn = QPushButton("🚀 Ejecutar Análisis")
+            run_btn.clicked.connect(dialog.accept)
+            buttons_layout.addWidget(run_btn)
+            
+            cancel_btn = QPushButton("Cancelar")
+            cancel_btn.clicked.connect(dialog.reject)
+            buttons_layout.addWidget(cancel_btn)
+            
+            layout.addLayout(buttons_layout)
+            
+            # Ejecutar diálogo
+            if dialog.exec_() != QDialog.Accepted:
+                return
+            
+            # Iniciar análisis completo
+            self.log_activity("🚀 Iniciando análisis petrofísico completo...")
+            
+            # Limpiar resultados anteriores
+            self.petro_results.clear()
+            
+            total_steps = 0
+            current_step = 0
+            
+            # Contar pasos habilitados
+            if self.comp_calc_vcl.isChecked():
+                total_steps += 1
+            if self.comp_calc_porosity.isChecked():
+                total_steps += 1
+            if self.comp_calc_sw.isChecked():
+                total_steps += 1
+            if self.comp_calc_perm.isChecked():
+                total_steps += 1
+            if self.comp_lithology_analysis.isChecked():
+                total_steps += 3  # Crossplots, facies, quality
+            
+            # Mostrar barra de progreso
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setMaximum(total_steps)
+            self.progress_bar.setValue(0)
+            
+            # Ejecutar análisis paso a paso
+            success_count = 0
+            error_count = 0
+            
+            # 1. VCL
+            if self.comp_calc_vcl.isChecked():
+                try:
+                    self.log_activity("🏔️ Calculando VCL...")
+                    self.calculate_vcl()
+                    success_count += 1
+                    self.petro_results.append("✅ VCL calculado")
+                except Exception as e:
+                    error_count += 1
+                    self.petro_results.append(f"❌ Error VCL: {str(e)[:50]}...")
+                    self.log_activity(f"❌ Error VCL: {str(e)}")
+                
+                current_step += 1
+                self.progress_bar.setValue(current_step)
+                QApplication.processEvents()  # Actualizar UI
+            
+            # 2. Porosidad
+            if self.comp_calc_porosity.isChecked():
+                try:
+                    self.log_activity("🕳️ Calculando Porosidad...")
+                    self.calculate_porosity()
+                    success_count += 1
+                    self.petro_results.append("✅ Porosidad calculada")
+                except Exception as e:
+                    error_count += 1
+                    self.petro_results.append(f"❌ Error Porosidad: {str(e)[:50]}...")
+                    self.log_activity(f"❌ Error Porosidad: {str(e)}")
+                
+                current_step += 1
+                self.progress_bar.setValue(current_step)
+                QApplication.processEvents()
+            
+            # 3. Saturación de Agua
+            if self.comp_calc_sw.isChecked():
+                try:
+                    self.log_activity("💧 Calculando Saturación de Agua...")
+                    self.calculate_water_saturation()
+                    success_count += 1
+                    self.petro_results.append("✅ Saturación de agua calculada")
+                except Exception as e:
+                    error_count += 1
+                    self.petro_results.append(f"❌ Error Sw: {str(e)[:50]}...")
+                    self.log_activity(f"❌ Error Sw: {str(e)}")
+                
+                current_step += 1
+                self.progress_bar.setValue(current_step)
+                QApplication.processEvents()
+            
+            # 4. Permeabilidad
+            if self.comp_calc_perm.isChecked():
+                try:
+                    self.log_activity("🌊 Calculando Permeabilidad...")
+                    self.calculate_permeability()
+                    success_count += 1
+                    self.petro_results.append("✅ Permeabilidad calculada")
+                except Exception as e:
+                    error_count += 1
+                    self.petro_results.append(f"❌ Error Permeabilidad: {str(e)[:50]}...")
+                    self.log_activity(f"❌ Error Permeabilidad: {str(e)}")
+                
+                current_step += 1
+                self.progress_bar.setValue(current_step)
+                QApplication.processEvents()
+            
+            # 5. Análisis Litológico
+            if self.comp_lithology_analysis.isChecked():
+                # 5.1 Crossplots
+                try:
+                    self.log_activity("📊 Generando crossplots litológicos...")
+                    self.generate_lithology_crossplots()
+                    success_count += 1
+                    self.petro_results.append("✅ Crossplots generados")
+                except Exception as e:
+                    error_count += 1
+                    self.petro_results.append(f"❌ Error Crossplots: {str(e)[:50]}...")
+                    self.log_activity(f"❌ Error Crossplots: {str(e)}")
+                
+                current_step += 1
+                self.progress_bar.setValue(current_step)
+                QApplication.processEvents()
+                
+                # 5.2 Clasificación de Facies
+                try:
+                    self.log_activity("🎯 Clasificando facies...")
+                    self.classify_facies()
+                    success_count += 1
+                    self.petro_results.append("✅ Facies clasificadas")
+                except Exception as e:
+                    error_count += 1
+                    self.petro_results.append(f"❌ Error Facies: {str(e)[:50]}...")
+                    self.log_activity(f"❌ Error Facies: {str(e)}")
+                
+                current_step += 1
+                self.progress_bar.setValue(current_step)
+                QApplication.processEvents()
+                
+                # 5.3 Evaluación de Calidad
+                try:
+                    self.log_activity("🏆 Evaluando calidad de reservorio...")
+                    self._perform_reservoir_quality_assessment()
+                    success_count += 1
+                    self.petro_results.append("✅ Calidad evaluada")
+                except Exception as e:
+                    error_count += 1
+                    self.petro_results.append(f"❌ Error Calidad: {str(e)[:50]}...")
+                    self.log_activity(f"❌ Error Calidad: {str(e)}")
+                
+                current_step += 1
+                self.progress_bar.setValue(current_step)
+                QApplication.processEvents()
+            
+            # Finalizar
+            self.progress_bar.setVisible(False)
+            
+            # Resumen final
+            total_analyses = success_count + error_count
+            success_rate = (success_count / total_analyses * 100) if total_analyses > 0 else 0
+            
+            self.petro_results.append(f"\n📊 RESUMEN DEL ANÁLISIS COMPLETO:")
+            self.petro_results.append(f"✅ Exitosos: {success_count}")
+            self.petro_results.append(f"❌ Errores: {error_count}")
+            self.petro_results.append(f"📈 Tasa de éxito: {success_rate:.1f}%")
+            
+            # Actualizar listas de curvas
+            self.update_curves_list()
+            self.update_petrophysics_ui()
+            
+            # Mensaje final
+            if success_count > 0:
+                if error_count == 0:
+                    final_msg = f"✅ Análisis completo exitoso!\n\n{success_count} análisis completados correctamente."
+                else:
+                    final_msg = f"⚠️ Análisis parcialmente completado.\n\n✅ Exitosos: {success_count}\n❌ Errores: {error_count}\n\nRevise el log para detalles de errores."
+                
+                QMessageBox.information(self, "Análisis Completado", final_msg)
+            else:
+                QMessageBox.critical(self, "Error", "No se pudo completar ningún análisis.\nRevise las curvas disponibles y configuraciones.")
+            
+            self.log_activity(f"🔬 Análisis completo finalizado: {success_count}/{total_analyses} exitosos")
+            
+        except Exception as e:
+            self.progress_bar.setVisible(False)
+            self.log_activity(f"❌ Error en análisis completo: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error en análisis completo:\n{str(e)}")
 
 
 if __name__ == "__main__":

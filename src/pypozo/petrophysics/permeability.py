@@ -449,3 +449,93 @@ class PermeabilityCalculator(PetrophysicsCalculator):
         """Placeholder para método Morris & Biggs."""
         logger.warning("⚠️ Método Morris & Biggs aún no implementado")
         return {'success': False, 'error': 'Método no implementado'}
+
+    # ==================== MÉTODOS WRAPPER PARA COMPATIBILIDAD ====================
+    
+    def calculate_timur_permeability(self, porosity, sw_irreducible, c_factor=8581, 
+                                   phi_exponent=4.4, sw_exponent=2.0):
+        """
+        Wrapper para compatibilidad con la aplicación principal.
+        Calcula permeabilidad usando correlación de Timur.
+        """
+        return self.calculate_timur(
+            porosity=porosity,
+            sw_irreducible=sw_irreducible,
+            A=c_factor,
+            B=phi_exponent,
+            C=sw_exponent
+        )
+    
+    def calculate_kozeny_carman_permeability(self, porosity, specific_surface=5.0, tortuosity=2.0):
+        """
+        Wrapper para compatibilidad con la aplicación principal.
+        Calcula permeabilidad usando ecuación de Kozeny-Carman.
+        """
+        return self.calculate_kozeny_carman(
+            porosity=porosity,
+            tortuosity=tortuosity,
+            C=specific_surface
+        )
+    
+    def calculate_wyllie_rose_permeability(self, porosity, irreducible_saturation, c_factor=79):
+        """
+        Wrapper para compatibilidad con la aplicación principal.
+        Calcula permeabilidad usando método de Wyllie & Rose.
+        """
+        # Wyllie & Rose: K = C * (φ^6 / Swi^2)
+        # Usar el método genérico con parámetros específicos
+        import numpy as np
+        
+        try:
+            # Validar entrada
+            if not hasattr(porosity, '__len__'):
+                porosity = np.array([porosity])
+            if not hasattr(irreducible_saturation, '__len__'):
+                irreducible_saturation = np.array([irreducible_saturation])
+            
+            # Aplicar fórmula de Wyllie & Rose
+            permeability = c_factor * (np.power(porosity, 6) / np.power(irreducible_saturation, 2))
+            
+            # Aplicar límites físicos
+            permeability = np.clip(permeability, 0.001, 10000)
+            
+            return {
+                'permeability': permeability,
+                'success': True,
+                'method': 'wyllie_rose',
+                'parameters': {'C': c_factor}
+            }
+            
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def calculate_coates_denoo_permeability(self, porosity, sw_irreducible, c_factor=10):
+        """
+        Wrapper para compatibilidad con la aplicación principal.
+        Calcula permeabilidad usando método de Coates & Denoo.
+        """
+        # Coates & Denoo: K = C * (φ^4 / Swi^2)
+        import numpy as np
+        
+        try:
+            # Validar entrada
+            if not hasattr(porosity, '__len__'):
+                porosity = np.array([porosity])
+            if not hasattr(sw_irreducible, '__len__'):
+                sw_irreducible = np.array([sw_irreducible])
+            
+            # Aplicar fórmula de Coates & Denoo
+            permeability = c_factor * (np.power(porosity, 4) / np.power(sw_irreducible, 2))
+            
+            # Aplicar límites físicos
+            permeability = np.clip(permeability, 0.001, 10000)
+            
+            return {
+                'permeability': permeability,
+                'success': True,
+                'method': 'coates_denoo',
+                'parameters': {'C': c_factor}
+            }
+            
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
