@@ -51,6 +51,24 @@ if PYQT5_AVAILABLE:
     from pypozo.petrophysics import (VclCalculator, PorosityCalculator, PetrophysicsCalculator,
                                      WaterSaturationCalculator, PermeabilityCalculator, LithologyAnalyzer)
 
+# Detección de DLC Patreon
+def check_patreon_dlc():
+    """Verificar si el DLC de Patreon está disponible."""
+    dlc_path = Path(__file__).parent / "patreon_dlc"
+    return dlc_path.exists() and (dlc_path / "__init__.py").exists()
+
+def load_patreon_features():
+    """Cargar características de Patreon si están disponibles."""
+    if check_patreon_dlc():
+        try:
+            import sys
+            sys.path.insert(0, str(Path(__file__).parent / "patreon_dlc"))
+            import neural_completion
+            return neural_completion
+        except ImportError:
+            return None
+    return None
+
 logger = logging.getLogger(__name__)
 
 class WellLoadThread(QThread):
@@ -94,8 +112,17 @@ class PyPozoApp(QMainWindow):
         # Lista para rastrear threads activos
         self.active_threads: List[QThread] = []
         
+        # Verificar DLC de Patreon
+        self.patreon_dlc = load_patreon_features()
+        self.has_patreon_dlc = self.patreon_dlc is not None
+        
         self.init_ui()
         self.setup_logging()
+        
+        if self.has_patreon_dlc:
+            logger.info("🌟 DLC Patreon detectado - Funciones avanzadas habilitadas")
+        else:
+            logger.info("ℹ️ DLC Patreon no encontrado - Solo funciones básicas")
         
         logger.info("🚀 PyPozo App iniciada")
         self.status_bar.showMessage("✅ PyPozo App lista para usar")
@@ -142,6 +169,7 @@ class PyPozoApp(QMainWindow):
         
         # Crear menús y barras
         self.create_menus()
+        self.setup_patreon_menu()  # Agregar menú DLC
         self.create_toolbars()
         self.create_status_bar()
         
@@ -387,6 +415,21 @@ class PyPozoApp(QMainWindow):
         self.merge_btn.setStyleSheet("background-color: #17a2b8; color: white;")  # Color diferente
         layout.addWidget(self.merge_btn)
         
+        # Separador visual
+        layout.addWidget(QLabel(""))
+        
+        # Botón Premium para Completado Inteligente - siempre visible
+        if self.has_patreon_dlc:
+            self.premium_completion_btn = QPushButton("🤖 Completado Inteligente IA - ¡ACTIVO!")
+            self.premium_completion_btn.clicked.connect(self.open_neural_completion)
+            self.premium_completion_btn.setStyleSheet("background-color: #28a745; color: white; font-weight: bold; padding: 12px; font-size: 13px;")
+        else:
+            self.premium_completion_btn = QPushButton("🤖 Completado Inteligente IA ✨ ¡DESBLOQUEAR!")
+            self.premium_completion_btn.clicked.connect(self.show_patreon_invitation)
+            self.premium_completion_btn.setStyleSheet("background-color: #ff6b35; color: white; font-weight: bold; padding: 12px; font-size: 13px; border: 2px solid #ffd700;")
+        
+        layout.addWidget(self.premium_completion_btn)
+        
         return tab
     
     def create_analysis_tab(self) -> QWidget:
@@ -407,6 +450,29 @@ class PyPozoApp(QMainWindow):
         quick_layout.addWidget(self.export_data_btn)
         
         layout.addWidget(quick_group)
+        
+        # Análisis Premium con IA - siempre visible
+        premium_group = QGroupBox("🌟 Análisis Premium con IA")
+        premium_layout = QVBoxLayout(premium_group)
+        
+        if self.has_patreon_dlc:
+            self.premium_analysis_btn = QPushButton("🧠 Interpretación Automática IA - ¡ACTIVO!")
+            self.premium_analysis_btn.clicked.connect(self.open_advanced_analysis)
+            self.premium_analysis_btn.setStyleSheet("background-color: #28a745; color: white; font-weight: bold; padding: 12px; font-size: 13px;")
+        else:
+            self.premium_analysis_btn = QPushButton("🧠 Interpretación Automática IA ✨ ¡DESBLOQUEAR!")
+            self.premium_analysis_btn.clicked.connect(self.show_patreon_invitation)
+            self.premium_analysis_btn.setStyleSheet("background-color: #ff6b35; color: white; font-weight: bold; padding: 12px; font-size: 13px; border: 2px solid #ffd700;")
+        
+        premium_layout.addWidget(self.premium_analysis_btn)
+        
+        # Descripción de funciones premium
+        premium_info = QLabel("🤖 Redes neuronales para análisis automático • 🔬 ML para interpretación geológica • 📊 Predicción inteligente de propiedades")
+        premium_info.setStyleSheet("color: #666; font-style: italic; font-size: 10px; padding: 5px;")
+        premium_info.setWordWrap(True)
+        premium_layout.addWidget(premium_info)
+        
+        layout.addWidget(premium_group)
         
         # Log de actividades
         log_group = QGroupBox("📋 Log de Actividades")
@@ -1007,6 +1073,20 @@ class PyPozoApp(QMainWindow):
         
         layout.addLayout(buttons_layout)
         
+        # Botón Premium - siempre visible
+        premium_layout = QHBoxLayout()
+        self.premium_lithology_btn = QPushButton("🌟 Análisis IA Premium")
+        if self.has_patreon_dlc:
+            self.premium_lithology_btn.setText("🌟 Análisis IA Premium - ¡ACTIVO!")
+            self.premium_lithology_btn.clicked.connect(self.open_advanced_analysis)
+            self.premium_lithology_btn.setStyleSheet("background-color: #28a745; color: white; font-weight: bold; padding: 12px; font-size: 13px;")
+        else:
+            self.premium_lithology_btn.setText("🌟 Análisis IA Premium ✨ ¡DESBLOQUEAR!")
+            self.premium_lithology_btn.clicked.connect(self.show_patreon_invitation)
+            self.premium_lithology_btn.setStyleSheet("background-color: #ff6b35; color: white; font-weight: bold; padding: 12px; font-size: 12px; border: 2px solid #ffd700;")
+        premium_layout.addWidget(self.premium_lithology_btn)
+        layout.addLayout(premium_layout)
+        
         # Resultados
         results_group = QGroupBox("📋 Resultados Litológicos")
         results_layout = QVBoxLayout(results_group)
@@ -1077,6 +1157,17 @@ class PyPozoApp(QMainWindow):
         # Info labels
         self.wells_count_label = QLabel("Pozos: 0")
         self.status_bar.addPermanentWidget(self.wells_count_label)
+        
+        # Indicador de estado Premium
+        if self.has_patreon_dlc:
+            self.premium_status_label = QLabel("🌟 PREMIUM ACTIVO")
+            self.premium_status_label.setStyleSheet("color: #28a745; font-weight: bold; background-color: #d4edda; padding: 3px 8px; border-radius: 4px; margin: 0 5px;")
+        else:
+            self.premium_status_label = QLabel("💎 Premium Disponible")
+            self.premium_status_label.setStyleSheet("color: #ff6b35; font-weight: bold; background-color: #fff3cd; padding: 3px 8px; border-radius: 4px; margin: 0 5px; border: 1px solid #ffd700;")
+            self.premium_status_label.mousePressEvent = lambda event: self.show_patreon_invitation()
+        
+        self.status_bar.addPermanentWidget(self.premium_status_label)
         
         # Versión y branding
         version_label = QLabel("PyPozo v2.0.0")
@@ -5190,6 +5281,237 @@ Sw = (({a} × {rw}) / ({phi_sample:.3f}^{m} × {rt_sample:.1f}))^(1/{n})
             self.progress_bar.setVisible(False)
             self.log_activity(f"❌ Error en análisis completo: {str(e)}")
             QMessageBox.critical(self, "Error", f"Error en análisis completo:\n{str(e)}")
+
+    # ==================== FUNCIONES DLC PATREON ====================
+    
+    def setup_patreon_menu(self):
+        """Configurar menú de funciones Patreon DLC."""
+        if self.has_patreon_dlc:
+            # Crear menú experimental
+            experimental_menu = self.menuBar().addMenu('🌟 Experimental')
+            experimental_menu.addAction('🤖 Completar Registros IA', self.open_neural_completion)
+            experimental_menu.addAction('🔬 Análisis Avanzado', self.open_advanced_analysis)
+            experimental_menu.addSeparator()
+            experimental_menu.addAction('ℹ️ Acerca del DLC', self.show_patreon_info)
+        else:
+            # Mostrar menú de invitación - más llamativo
+            patreon_menu = self.menuBar().addMenu('💎 Premium ✨')
+            patreon_menu.addAction('🚀 ¡Ver Funciones IA Premium!', self.show_patreon_invitation)
+            patreon_menu.addSeparator()
+            patreon_menu.addAction('🌟 Únete a Patreon - $15/mes', self.open_patreon_page)
+            patreon_menu.addAction('📥 Ya soy Patreon - Descargar DLC', self.download_patreon_dlc)
+    
+    def open_neural_completion(self):
+        """Abrir diálogo de completado de registros con IA."""
+        try:
+            if len(self.wells) < 2:
+                QMessageBox.warning(self, "Advertencia", 
+                                  "Se requieren al menos 2 pozos para el completado inteligente")
+                return
+            
+            # Llamar al DLC
+            dialog = self.patreon_dlc.create_completion_dialog(self.wells, self)
+            dialog.exec_()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error abriendo completado IA:\n{str(e)}")
+    
+    def open_advanced_analysis(self):
+        """Abrir análisis avanzado."""
+        try:
+            if not self.current_well:
+                QMessageBox.warning(self, "Advertencia", "Seleccione un pozo primero")
+                return
+            
+            # Llamar al DLC
+            dialog = self.patreon_dlc.create_advanced_analysis_dialog(self.current_well, self)
+            dialog.exec_()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error abriendo análisis avanzado:\n{str(e)}")
+    
+    def show_patreon_info(self):
+        """Mostrar información del DLC Patreon."""
+        info_text = """
+<h2>🌟 PyPozo Premium DLC</h2>
+
+<h3>✨ Funciones Experimentales Activas:</h3>
+<ul>
+<li>🤖 <b>Completado Inteligente de Registros</b> - IA para extender rangos de profundidad</li>
+<li>🔬 <b>Análisis Petrofísico Avanzado</b> - Modelos ML para interpretación</li>
+<li>🧠 <b>Redes Neuronales para Litología</b> - Clasificación automática avanzada</li>
+<li>📊 <b>Predicción de Propiedades</b> - Estimación de parámetros faltantes</li>
+</ul>
+
+<h3>🙏 Gracias por el apoyo en Patreon!</h3>
+<p>Tu suscripción permite el desarrollo continuo de nuevas funcionalidades.</p>
+
+<p><i>💻 PyPozo Premium - Análisis de pozos con IA</i></p>
+"""
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Acerca del DLC Premium")
+        dialog.resize(600, 400)
+        
+        layout = QVBoxLayout(dialog)
+        
+        text_widget = QTextEdit()
+        text_widget.setHtml(info_text)
+        text_widget.setReadOnly(True)
+        layout.addWidget(text_widget)
+        
+        close_btn = QPushButton("Cerrar")
+        close_btn.clicked.connect(dialog.accept)
+        layout.addWidget(close_btn)
+        
+        dialog.exec_()
+    
+    def show_patreon_invitation(self):
+        """Mostrar invitación a Patreon."""
+        invitation_text = """
+<h2>� ¡Desbloquea el Poder de la Inteligencia Artificial en PyPozo!</h2>
+
+<div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #28a745; margin: 10px 0;">
+<h3>💡 ¿Qué acabas de intentar usar?</h3>
+<p><b>Funcionalidades experimentales con IA</b> que transformarán tu flujo de trabajo de análisis de pozos.</p>
+</div>
+
+<h3>🤖 Completado Inteligente de Registros con LSTM</h3>
+<ul>
+<li>🎯 <b>Redes Neuronales LSTM</b> que aprenden patrones entre tus curvas</li>
+<li>⚡ <b>Extiende registros automáticamente</b> a rangos completos de profundidad</li>
+<li>📊 <b>Elimina gaps y valores faltantes</b> con precisión de experto</li>
+<li>✅ <b>Validación cruzada en tiempo real</b> con métricas de confianza</li>
+</ul>
+
+<h3>🧠 Análisis Petrofísico Avanzado con Machine Learning</h3>
+<ul>
+<li>🔬 <b>Interpretación automática de litologías</b> usando modelos entrenados</li>
+<li>💎 <b>Identificación inteligente de zonas productivas</b> con IA</li>
+<li>📈 <b>Predicción de propiedades faltantes</b> basada en correlaciones ocultas</li>
+<li>🎲 <b>Análisis de incertidumbre cuantificado</b> matemáticamente</li>
+</ul>
+
+<h3>⭐ Clasificación Litológica de Nueva Generación</h3>
+<ul>
+<li>🌟 <b>Redes neuronales</b> entrenadas en miles de pozos reales</li>
+<li>🏷️ <b>Reconocimiento automático de facies</b> sedimentarias</li>
+<li>🎯 <b>Crossplots inteligentes</b> con clustering automático</li>
+<li>📊 <b>Interpretación geológica asistida</b> por IA nivel profesional</li>
+</ul>
+
+<div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin: 15px 0;">
+<h3>💰 ¡Acceso Completo por Solo $15/mes!</h3>
+<p><b>� Beneficios del Patreon Premium:</b></p>
+<ul>
+<li>🚀 <b>Todas las funciones IA</b> desbloqueadas inmediatamente</li>
+<li>⚡ <b>Updates prioritarios</b> - nuevas funciones antes que nadie</li>
+<li>💬 <b>Soporte técnico directo</b> conmigo (el desarrollador)</li>
+<li>�️ <b>Voz en el desarrollo</b> - decides qué funciones implementar</li>
+<li>📚 <b>Tutoriales exclusivos</b> y casos de estudio reales</li>
+</ul>
+</div>
+
+<h3>🙏 Apoya el Desarrollo Independiente</h3>
+<p>PyPozo es un <b>proyecto independiente</b> desarrollado con pasión para la comunidad geológica. 
+Tu suscripción permite:</p>
+<ul>
+<li>⚗️ <b>Investigación continua</b> en IA aplicada a geociencias</li>
+<li>🔧 <b>Desarrollo de nuevas funcionalidades</b> avanzadas</li>
+<li>📖 <b>Documentación y tutoriales</b> de calidad profesional</li>
+<li>🆓 <b>Mantener la versión básica siempre gratuita</b></li>
+</ul>
+
+<div style="background-color: #fff3cd; padding: 10px; border-radius: 5px; text-align: center; margin: 10px 0;">
+<b>💝 ¡Tu apoyo hace la diferencia! Únete a la revolución de la IA en geociencias</b>
+</div>
+"""
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("� ¡Desbloquea Funciones Premium!")
+        dialog.resize(800, 750)
+        
+        layout = QVBoxLayout(dialog)
+        
+        text_widget = QTextEdit()
+        text_widget.setHtml(invitation_text)
+        text_widget.setReadOnly(True)
+        layout.addWidget(text_widget)
+        
+        buttons_layout = QHBoxLayout()
+        
+        patreon_btn = QPushButton("🌟 ¡ÚNETE AHORA! - patreon.com/chemitas")
+        patreon_btn.clicked.connect(self.open_patreon_page)
+        patreon_btn.setStyleSheet("""
+            background-color: #ff424d; 
+            color: white; 
+            font-weight: bold; 
+            padding: 15px; 
+            font-size: 16px;
+            border-radius: 8px;
+            border: 3px solid #ffd700;
+        """)
+        buttons_layout.addWidget(patreon_btn)
+        
+        download_btn = QPushButton("📥 Ya soy Patreon - Descargar DLC")
+        download_btn.clicked.connect(self.download_patreon_dlc)
+        download_btn.setStyleSheet("""
+            background-color: #007bff; 
+            color: white; 
+            font-weight: bold; 
+            padding: 12px;
+            border-radius: 5px;
+        """)
+        buttons_layout.addWidget(download_btn)
+        
+        close_btn = QPushButton("Cerrar")
+        close_btn.clicked.connect(dialog.accept)
+        close_btn.setStyleSheet("padding: 10px;")
+        buttons_layout.addWidget(close_btn)
+        
+        layout.addLayout(buttons_layout)
+        dialog.exec_()
+    
+    def open_patreon_page(self):
+        """Abrir página de Patreon."""
+        import webbrowser
+        webbrowser.open("https://www.patreon.com/chemitas")  # Tu URL real de Patreon
+        
+    def download_patreon_dlc(self):
+        """Descargar DLC de Patreon."""
+        download_text = """
+¡Gracias por ser un suscriptor de Patreon! 🎉
+
+Para acceder a las funciones Premium de PyPozo:
+
+📥 INSTRUCCIONES DE DESCARGA:
+
+1. 📱 Ve a tu página de Patreon: patreon.com/chemitas
+2. 📁 Busca la publicación "PyPozo Premium DLC"
+3. ⬇️ Descarga el archivo "patreon_dlc.zip"
+4. 📂 Extrae la carpeta "patreon_dlc" en la misma ubicación que pypozo_app.py
+5. 🔄 Reinicia PyPozo para activar las funciones
+
+🔧 ESTRUCTURA CORRECTA:
+tu_carpeta/
+├── pypozo_app.py
+├── patreon_dlc/          ← Esta carpeta debe estar aquí
+│   ├── __init__.py
+│   ├── neural_completion.py
+│   └── ...
+
+✅ Una vez instalado correctamente:
+• El menú cambiará a "🌟 Experimental" 
+• Los botones Premium mostrarán "¡ACTIVO!"
+• Tendrás acceso completo a todas las funciones IA
+
+❓ ¿PROBLEMAS? 
+Envíame un mensaje directo en Patreon y te ayudo personalmente.
+
+💝 ¡Gracias por apoyar el desarrollo de PyPozo!
+        """
+        
+        QMessageBox.information(self, "📥 Descarga DLC Premium", download_text)
 
 
 if __name__ == "__main__":
