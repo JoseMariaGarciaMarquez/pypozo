@@ -12,13 +12,15 @@ def test_dlc_detection():
     
     # Función de detección (copia de pypozo_app.py)
     def check_patreon_dlc():
-        dlc_path = Path(__file__).parent / "patreon_dlc"
+        # Buscar DLC en la raíz del proyecto (subir un nivel desde tests/)
+        dlc_path = Path(__file__).parent.parent / "patreon_dlc"
         return dlc_path.exists() and (dlc_path / "__init__.py").exists()
 
     def load_patreon_features():
         if check_patreon_dlc():
             try:
-                sys.path.insert(0, str(Path(__file__).parent / "patreon_dlc"))
+                dlc_path = Path(__file__).parent.parent / "patreon_dlc"
+                sys.path.insert(0, str(dlc_path))
                 import neural_completion
                 return neural_completion
             except ImportError as e:
@@ -31,7 +33,7 @@ def test_dlc_detection():
     print(f"📁 Carpeta DLC detectada: {'✅ SÍ' if has_dlc else '❌ NO'}")
     
     if has_dlc:
-        dlc_path = Path(__file__).parent / "patreon_dlc"
+        dlc_path = Path(__file__).parent.parent / "patreon_dlc"
         files = list(dlc_path.glob("*.py"))
         print(f"📋 Archivos Python encontrados: {[f.name for f in files]}")
         

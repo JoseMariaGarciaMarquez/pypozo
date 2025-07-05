@@ -112,6 +112,11 @@ class PyPozoApp(QMainWindow):
         # Lista para rastrear threads activos
         self.active_threads: List[QThread] = []
         
+        # Variables para controlar visibilidad de paneles
+        self.left_panel_visible = True
+        self.right_panel_visible = True
+        self.normal_sizes = [250, 1100, 250]  # Tamaños normales
+        
         # Verificar DLC de Patreon
         self.patreon_dlc = load_patreon_features()
         self.has_patreon_dlc = self.patreon_dlc is not None
@@ -151,21 +156,33 @@ class PyPozoApp(QMainWindow):
         # Layout principal
         main_layout = QHBoxLayout(central_widget)
         
-        # Splitter principal
-        main_splitter = QSplitter(Qt.Horizontal)
-        main_layout.addWidget(main_splitter)
-        
         # Paneles
         left_panel = self.create_left_panel()
         center_panel = self.create_center_panel()
         right_panel = self.create_right_panel()
         
+        # Guardar referencias para controlar visibilidad
+        self.left_panel = left_panel
+        self.center_panel = center_panel
+        self.right_panel = right_panel
+        
+        # Splitter principal
+        main_splitter = QSplitter(Qt.Horizontal)
+        self.main_splitter = main_splitter  # Guardar referencia
+        main_layout.addWidget(main_splitter)
+        
         main_splitter.addWidget(left_panel)
         main_splitter.addWidget(center_panel)
         main_splitter.addWidget(right_panel)
         
-        # Configurar proporciones
-        main_splitter.setSizes([350, 900, 350])
+        # Configurar proporciones - Balance normal con opción de colapsar paneles
+        main_splitter.setSizes([250, 1100, 250])
+        
+        # Configurar política de redimensionamiento para evitar cambios automáticos de ventana
+        main_splitter.setChildrenCollapsible(True)
+        main_splitter.setStretchFactor(0, 0)  # Panel izquierdo no se estira
+        main_splitter.setStretchFactor(1, 1)  # Panel central se estira
+        main_splitter.setStretchFactor(2, 0)  # Panel derecho no se estira
         
         # Crear menús y barras
         self.create_menus()
@@ -182,12 +199,13 @@ class PyPozoApp(QMainWindow):
     def create_left_panel(self) -> QWidget:
         """Panel izquierdo - Explorador de pozos."""
         panel = QWidget()
+        panel.setMinimumWidth(0)  # Permitir colapso completo
         layout = QVBoxLayout(panel)
         
-        # Título
-        title = QLabel("📁 Explorador de Pozos")
-        title.setFont(QFont("Arial", 14, QFont.Bold))
-        title.setStyleSheet("color: #2E8B57; margin: 10px;")
+        # Título compacto
+        title = QLabel("📁 Pozos")
+        title.setFont(QFont("Arial", 12, QFont.Bold))
+        title.setStyleSheet("color: #2E8B57; margin: 5px;")
         layout.addWidget(title)
         
         # Árbol de pozos
@@ -242,6 +260,14 @@ class PyPozoApp(QMainWindow):
         header_frame = QFrame()
         header_layout = QHBoxLayout(header_frame)
         
+        # Botones de colapsar paneles - lado izquierdo
+        self.toggle_left_btn = QPushButton("◀")
+        self.toggle_left_btn.setToolTip("Ocultar/Mostrar panel izquierdo")
+        self.toggle_left_btn.setFixedSize(25, 25)
+        self.toggle_left_btn.clicked.connect(self.toggle_left_panel)
+        self.toggle_left_btn.setStyleSheet("background-color: #6c757d; font-weight: bold; font-size: 12px;")
+        header_layout.addWidget(self.toggle_left_btn)
+        
         title = QLabel("📈 Visualización de Registros")
         title.setFont(QFont("Arial", 14, QFont.Bold))
         title.setStyleSheet("color: #2E8B57;")
@@ -269,6 +295,22 @@ class PyPozoApp(QMainWindow):
         self.save_plot_btn.setEnabled(False)
         header_layout.addWidget(self.save_plot_btn)
         
+        # Botón de colapsar panel derecho - lado derecho
+        self.toggle_right_btn = QPushButton("▶")
+        self.toggle_right_btn.setToolTip("Ocultar/Mostrar panel derecho")
+        self.toggle_right_btn.setFixedSize(25, 25)
+        self.toggle_right_btn.clicked.connect(self.toggle_right_panel)
+        self.toggle_right_btn.setStyleSheet("background-color: #6c757d; font-weight: bold; font-size: 12px;")
+        header_layout.addWidget(self.toggle_right_btn)
+        
+        # Botón para maximizar gráficas (ocultar ambos paneles)
+        self.maximize_plot_btn = QPushButton("⛶")
+        self.maximize_plot_btn.setToolTip("Maximizar área de gráficas (ocultar/mostrar ambos paneles)")
+        self.maximize_plot_btn.setFixedSize(25, 25)
+        self.maximize_plot_btn.clicked.connect(self.toggle_both_panels)
+        self.maximize_plot_btn.setStyleSheet("background-color: #17a2b8; font-weight: bold; font-size: 12px;")
+        header_layout.addWidget(self.maximize_plot_btn)
+        
         layout.addWidget(header_frame)
         
         # Canvas de matplotlib
@@ -281,16 +323,53 @@ class PyPozoApp(QMainWindow):
     def create_right_panel(self) -> QWidget:
         """Panel derecho - Herramientas."""
         panel = QWidget()
+        panel.setObjectName("rightPanel")
+        panel.setMinimumWidth(0)  # Permitir colapso completo
         layout = QVBoxLayout(panel)
+        layout.setContentsMargins(5, 5, 5, 5)  # Márgenes normales
+        layout.setSpacing(5)  # Espaciado normal
         
         # Título
-        title = QLabel("🔧 Herramientas de Análisis")
-        title.setFont(QFont("Arial", 14, QFont.Bold))
-        title.setStyleSheet("color: #2E8B57; margin: 10px;")
+        title = QLabel("🔧 Herramientas")
+        title.setFont(QFont("Arial", 12, QFont.Bold))
+        title.setStyleSheet("color: #2E8B57; margin: 5px;")
         layout.addWidget(title)
         
-        # Tabs
+        # Tabs - Configuración normal
         self.tools_tabs = QTabWidget()
+        
+        # Configuración normal de pestañas
+        self.tools_tabs.setTabPosition(QTabWidget.North)
+        self.tools_tabs.setUsesScrollButtons(True)
+        
+        # Aplicar estilo normal a las pestañas
+        self.tools_tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #dee2e6;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QTabBar::tab {
+                background-color: #e9ecef;
+                padding: 8px 12px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                font-weight: bold;
+                font-size: 10px;
+                min-width: 80px;
+                min-height: 20px;
+            }
+            QTabBar::tab:selected {
+                background-color: #007bff;
+                color: white;
+                border: 1px solid #0056b3;
+            }
+            QTabBar::tab:hover {
+                background-color: #17a2b8;
+                color: white;
+            }
+        """)
         
         # Tab 1: Selección de curvas
         curves_tab = self.create_curves_tab()
@@ -308,6 +387,10 @@ class PyPozoApp(QMainWindow):
         petrophysics_tab = self.create_petrophysics_tab()
         self.tools_tabs.addTab(petrophysics_tab, "🧪 Petrofísica")
         
+        # Tab 5: Premium DLC
+        premium_tab = self.create_premium_dlc_tab()
+        self.tools_tabs.addTab(premium_tab, "🌟 Premium IA")
+        
         layout.addWidget(self.tools_tabs)
         
         return panel
@@ -316,14 +399,17 @@ class PyPozoApp(QMainWindow):
         """Tab para selección de curvas."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        layout.setContentsMargins(5, 5, 5, 5)  # Márgenes normales
+        layout.setSpacing(5)  # Espaciado normal
         
         # Información del pozo actual
-        self.current_well_label = QLabel("Seleccione un pozo")
+        self.current_well_label = QLabel("Pozo actual:")
         self.current_well_label.setFont(QFont("Arial", 10, QFont.Bold))
         layout.addWidget(self.current_well_label)
         
         # Lista de curvas
-        curves_label = QLabel("Curvas Disponibles:")
+        curves_label = QLabel("Curvas disponibles:")
+        curves_label.setFont(QFont("Arial", 9, QFont.Bold))
         layout.addWidget(curves_label)
         
         self.curves_list = QListWidget()
@@ -334,15 +420,19 @@ class PyPozoApp(QMainWindow):
         # Botones de selección rápida
         quick_frame = QFrame()
         quick_layout = QVBoxLayout(quick_frame)
+        quick_layout.setContentsMargins(2, 2, 2, 2)
+        quick_layout.setSpacing(3)
         
         # Primera fila
         row1 = QHBoxLayout()
         
-        self.select_all_btn = QPushButton("✅ Todo")
+        self.select_all_btn = QPushButton("✅ Seleccionar Todo")
+        self.select_all_btn.setToolTip("Seleccionar todas las curvas")
         self.select_all_btn.clicked.connect(self.select_all_curves)
         row1.addWidget(self.select_all_btn)
         
-        self.select_none_btn = QPushButton("❌ Nada")
+        self.select_none_btn = QPushButton("❌ Deseleccionar")
+        self.select_none_btn.setToolTip("Deseleccionar todas las curvas")
         self.select_none_btn.clicked.connect(self.select_no_curves)
         row1.addWidget(self.select_none_btn)
         
@@ -351,11 +441,13 @@ class PyPozoApp(QMainWindow):
         # Segunda fila - Presets
         row2 = QHBoxLayout()
         
-        self.select_basic_btn = QPushButton("📊 Básicas")
+        self.select_basic_btn = QPushButton("📊 Curvas Básicas")
+        self.select_basic_btn.setToolTip("Seleccionar curvas básicas (GR, RT, NPHI, RHOB)")
         self.select_basic_btn.clicked.connect(self.select_basic_curves)
         row2.addWidget(self.select_basic_btn)
         
         self.select_petro_btn = QPushButton("🔬 Petrofísicas")
+        self.select_petro_btn.setToolTip("Seleccionar curvas petrofísicas")
         self.select_petro_btn.clicked.connect(self.select_petro_curves)
         row2.addWidget(self.select_petro_btn)
         
@@ -365,10 +457,12 @@ class PyPozoApp(QMainWindow):
         row3 = QHBoxLayout()
         
         self.select_acoustic_btn = QPushButton("🔊 Acústicas")
+        self.select_acoustic_btn.setToolTip("Seleccionar curvas acústicas (DT, DTS)")
         self.select_acoustic_btn.clicked.connect(self.select_acoustic_curves)
         row3.addWidget(self.select_acoustic_btn)
         
         self.select_electrical_btn = QPushButton("⚡ Eléctricas")
+        self.select_electrical_btn.setToolTip("Seleccionar curvas eléctricas (RT, SP)")
         self.select_electrical_btn.clicked.connect(self.select_electrical_curves)
         row3.addWidget(self.select_electrical_btn)
         
@@ -378,7 +472,7 @@ class PyPozoApp(QMainWindow):
         
         # Info de selección
         self.selection_info = QLabel("Curvas seleccionadas: 0")
-        self.selection_info.setStyleSheet("color: #666; font-style: italic;")
+        self.selection_info.setStyleSheet("color: #666; font-style: italic; font-size: 10px;")
         layout.addWidget(self.selection_info)
         
         return tab
@@ -1100,6 +1194,168 @@ class PyPozoApp(QMainWindow):
         layout.addWidget(results_group)
         
         return tab
+
+    def create_premium_dlc_tab(self) -> QWidget:
+        """Tab para funcionalidades Premium/DLC de Patreon."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        if self.has_patreon_dlc:
+            # DLC PRESENTE: Mostrar UI premium completa
+            title = QLabel("🌟 Premium IA - ¡ACTIVO!")
+            title.setFont(QFont("Arial", 16, QFont.Bold))
+            title.setStyleSheet("color: #28a745; margin: 10px; text-align: center;")
+            title.setAlignment(Qt.AlignCenter)
+            layout.addWidget(title)
+            
+            # Información de suscripción activa
+            subscription_info = QLabel("✅ Suscripción Patreon Activa - Nivel 3 ($15/mes)")
+            subscription_info.setStyleSheet("color: #28a745; font-weight: bold; background-color: #d4edda; padding: 8px; border-radius: 5px; margin: 5px;")
+            subscription_info.setAlignment(Qt.AlignCenter)
+            layout.addWidget(subscription_info)
+            
+            # Separador
+            layout.addWidget(QLabel(""))
+            
+            # Sección 1: Completado Inteligente
+            completion_group = QGroupBox("🤖 Completado Inteligente con IA")
+            completion_layout = QVBoxLayout(completion_group)
+            
+            completion_desc = QLabel("Usa redes neuronales para completar registros faltantes basándose en pozos similares y patrones geológicos.")
+            completion_desc.setWordWrap(True)
+            completion_desc.setStyleSheet("color: #666; font-style: italic; margin: 5px;")
+            completion_layout.addWidget(completion_desc)
+            
+            self.neural_completion_btn = QPushButton("🧠 Abrir Completado Neural")
+            self.neural_completion_btn.clicked.connect(self.open_neural_completion)
+            self.neural_completion_btn.setStyleSheet("background-color: #007bff; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
+            completion_layout.addWidget(self.neural_completion_btn)
+            
+            layout.addWidget(completion_group)
+            
+            # Sección 2: Análisis Avanzado
+            analysis_group = QGroupBox("🔬 Análisis Litológico Avanzado")
+            analysis_layout = QVBoxLayout(analysis_group)
+            
+            analysis_desc = QLabel("Clasificación automática de litologías usando machine learning y análisis de patrones multivariable.")
+            analysis_desc.setWordWrap(True)
+            analysis_desc.setStyleSheet("color: #666; font-style: italic; margin: 5px;")
+            analysis_layout.addWidget(analysis_desc)
+            
+            self.advanced_lithology_btn = QPushButton("🪨 Análisis Litológico IA")
+            self.advanced_lithology_btn.clicked.connect(self.open_advanced_lithology)
+            self.advanced_lithology_btn.setStyleSheet("background-color: #28a745; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
+            analysis_layout.addWidget(self.advanced_lithology_btn)
+            
+            layout.addWidget(analysis_group)
+            
+            # Sección 3: Interpretación Automática
+            interpreter_group = QGroupBox("🧠 Interpretador Automático")
+            interpreter_layout = QVBoxLayout(interpreter_group)
+            
+            interpreter_desc = QLabel("Interpretación automática de registros geofísicos con comentarios técnicos y recomendaciones.")
+            interpreter_desc.setWordWrap(True)
+            interpreter_desc.setStyleSheet("color: #666; font-style: italic; margin: 5px;")
+            interpreter_layout.addWidget(interpreter_desc)
+            
+            self.ai_interpreter_btn = QPushButton("🗣️ Interpretador IA")
+            self.ai_interpreter_btn.clicked.connect(self.open_ai_interpreter)
+            self.ai_interpreter_btn.setStyleSheet("background-color: #6f42c1; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
+            interpreter_layout.addWidget(self.ai_interpreter_btn)
+            
+            layout.addWidget(interpreter_group)
+            
+            # Estado del DLC
+            dlc_status = QLabel("📦 DLC Versión: v1.0.0 | Estado: Completamente Funcional")
+            dlc_status.setStyleSheet("color: #28a745; font-size: 10px; font-style: italic; text-align: center;")
+            dlc_status.setAlignment(Qt.AlignCenter)
+            layout.addWidget(dlc_status)
+            
+        else:
+            # DLC NO PRESENTE: Mostrar invitación/marketing
+            title = QLabel("🌟 Premium IA - ¡Desbloquear Funciones Avanzadas!")
+            title.setFont(QFont("Arial", 16, QFont.Bold))
+            title.setStyleSheet("color: #ff6b35; margin: 10px; text-align: center;")
+            title.setAlignment(Qt.AlignCenter)
+            layout.addWidget(title)
+            
+            # Mensaje principal
+            main_message = QLabel("🚀 Lleva PyPozo al siguiente nivel con IA y Machine Learning")
+            main_message.setFont(QFont("Arial", 14, QFont.Bold))
+            main_message.setStyleSheet("color: #333; margin: 10px; text-align: center;")
+            main_message.setAlignment(Qt.AlignCenter)
+            layout.addWidget(main_message)
+            
+            # Características premium
+            features_group = QGroupBox("✨ Funciones Exclusivas Premium")
+            features_layout = QVBoxLayout(features_group)
+            
+            features = [
+                "🤖 Completado Inteligente de Registros con IA",
+                "🔬 Análisis Litológico Automático con ML", 
+                "🧠 Interpretador Automático de Registros",
+                "📊 Predicción de Propiedades Petrofísicas",
+                "🎯 Clasificación Automática de Facies",
+                "🔍 Detección de Anomalías Geológicas",
+                "📈 Optimización Automática de Parámetros",
+                "🌐 Acceso a Modelos Pre-entrenados"
+            ]
+            
+            for feature in features:
+                feature_label = QLabel(feature)
+                feature_label.setStyleSheet("color: #333; padding: 3px; font-size: 13px;")
+                features_layout.addWidget(feature_label)
+            
+            layout.addWidget(features_group)
+            
+            # Precio y botón principal
+            price_label = QLabel("💰 Solo $15/mes - Nivel 3 Patreon")
+            price_label.setFont(QFont("Arial", 14, QFont.Bold))
+            price_label.setStyleSheet("color: #28a745; text-align: center; margin: 10px;")
+            price_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(price_label)
+            
+            # Botón principal CTA
+            self.subscribe_btn = QPushButton("🌟 ¡SUSCRIBIRME AHORA!")
+            self.subscribe_btn.clicked.connect(self.show_patreon_invitation)
+            self.subscribe_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #ff6b35;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 16px;
+                    padding: 15px;
+                    border-radius: 8px;
+                    border: 3px solid #ffd700;
+                }
+                QPushButton:hover {
+                    background-color: #e55a2b;
+                    border: 3px solid #ffed4e;
+                }
+            """)
+            layout.addWidget(self.subscribe_btn)
+            
+            # Ya soy suscriptor
+            existing_subscriber_label = QLabel("¿Ya eres suscriptor?")
+            existing_subscriber_label.setStyleSheet("color: #666; text-align: center; margin-top: 15px;")
+            existing_subscriber_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(existing_subscriber_label)
+            
+            self.download_dlc_btn = QPushButton("📥 Descargar DLC")
+            self.download_dlc_btn.clicked.connect(self.show_download_instructions)
+            self.download_dlc_btn.setStyleSheet("background-color: #17a2b8; color: white; font-weight: bold; padding: 8px; border-radius: 5px;")
+            layout.addWidget(self.download_dlc_btn)
+            
+            # Garantía
+            guarantee_label = QLabel("💯 30 días de garantía - Cancela cuando quieras")
+            guarantee_label.setStyleSheet("color: #28a745; font-size: 11px; text-align: center; font-style: italic; margin-top: 10px;")
+            guarantee_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(guarantee_label)
+        
+        # Spacer para empujar todo hacia arriba
+        layout.addStretch()
+        
+        return tab
     
     def create_menus(self):
         """Crear menús."""
@@ -1119,6 +1375,10 @@ class PyPozoApp(QMainWindow):
         view_menu = menubar.addMenu('👁️ Ver')
         view_menu.addAction('🔄 Actualizar', self.refresh_view, 'F5')
         view_menu.addAction('🔍 Limpiar Gráfico', self.clear_plot)
+        view_menu.addSeparator()
+        view_menu.addAction('◀ Ocultar/Mostrar Panel Izquierdo', self.toggle_left_panel, 'Ctrl+1')
+        view_menu.addAction('▶ Ocultar/Mostrar Panel Derecho', self.toggle_right_panel, 'Ctrl+2')
+        view_menu.addAction('⛶ Maximizar Gráficas', self.toggle_both_panels, 'Ctrl+M')
         
         # Herramientas
         tools_menu = menubar.addMenu('🔧 Herramientas')
@@ -1287,6 +1547,89 @@ class PyPozoApp(QMainWindow):
         cursor.movePosition(QTextCursor.End)
         self.activity_log.setTextCursor(cursor)
     
+    # ========== FUNCIONES DE COLAPSAR PANELES ==========
+    
+    def toggle_left_panel(self):
+        """Alternar visibilidad del panel izquierdo."""
+        # Guardar tamaño actual de la ventana para evitar redimensionamiento
+        current_geometry = self.geometry()
+        
+        if self.left_panel_visible:
+            # Ocultar panel izquierdo
+            self.left_panel.hide()
+            self.toggle_left_btn.setText("▶")
+            self.toggle_left_btn.setToolTip("Mostrar panel izquierdo")
+            self.left_panel_visible = False
+            # Ajustar tamaños
+            current_sizes = self.main_splitter.sizes()
+            new_sizes = [0, current_sizes[1] + current_sizes[0], current_sizes[2]]
+            self.main_splitter.setSizes(new_sizes)
+        else:
+            # Mostrar panel izquierdo
+            self.left_panel.show()
+            self.toggle_left_btn.setText("◀")
+            self.toggle_left_btn.setToolTip("Ocultar panel izquierdo")
+            self.left_panel_visible = True
+            # Restaurar tamaños
+            if self.right_panel_visible:
+                self.main_splitter.setSizes(self.normal_sizes)
+            else:
+                self.main_splitter.setSizes([250, 1350, 0])
+        
+        # Restaurar el tamaño de la ventana para evitar cambios indeseados
+        self.setGeometry(current_geometry)
+    
+    def toggle_right_panel(self):
+        """Alternar visibilidad del panel derecho."""
+        # Guardar tamaño actual de la ventana para evitar redimensionamiento
+        current_geometry = self.geometry()
+        
+        if self.right_panel_visible:
+            # Ocultar panel derecho
+            self.right_panel.hide()
+            self.toggle_right_btn.setText("◀")
+            self.toggle_right_btn.setToolTip("Mostrar panel derecho")
+            self.right_panel_visible = False
+            # Ajustar tamaños
+            current_sizes = self.main_splitter.sizes()
+            new_sizes = [current_sizes[0], current_sizes[1] + current_sizes[2], 0]
+            self.main_splitter.setSizes(new_sizes)
+        else:
+            # Mostrar panel derecho
+            self.right_panel.show()
+            self.toggle_right_btn.setText("▶")
+            self.toggle_right_btn.setToolTip("Ocultar panel derecho")
+            self.right_panel_visible = True
+            # Restaurar tamaños
+            if self.left_panel_visible:
+                self.main_splitter.setSizes(self.normal_sizes)
+            else:
+                self.main_splitter.setSizes([0, 1350, 250])
+        
+        # Restaurar el tamaño de la ventana para evitar cambios indeseados
+        self.setGeometry(current_geometry)
+    
+    def toggle_both_panels(self):
+        """Alternar ambos paneles a la vez (modo full screen gráficas)."""
+        # Guardar tamaño actual de la ventana para evitar redimensionamiento
+        current_geometry = self.geometry()
+        
+        if self.left_panel_visible or self.right_panel_visible:
+            # Ocultar ambos paneles
+            if self.left_panel_visible:
+                self.toggle_left_panel()
+            if self.right_panel_visible:
+                self.toggle_right_panel()
+        else:
+            # Mostrar ambos paneles
+            if not self.left_panel_visible:
+                self.toggle_left_panel()
+            if not self.right_panel_visible:
+                self.toggle_right_panel()
+        
+        # Restaurar el tamaño de la ventana para evitar cambios indeseados
+        self.setGeometry(current_geometry)
+
     # ========== FUNCIONALIDADES PRINCIPALES ==========
     
     def load_well(self):
@@ -5330,6 +5673,34 @@ Sw = (({a} × {rw}) / ({phi_sample:.3f}^{m} × {rt_sample:.1f}))^(1/{n})
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error abriendo análisis avanzado:\n{str(e)}")
     
+    def open_advanced_lithology(self):
+        """Abrir análisis litológico avanzado con IA."""
+        try:
+            if not self.current_well:
+                QMessageBox.warning(self, "Advertencia", "Seleccione un pozo primero")
+                return
+            
+            # Llamar al DLC
+            dialog = self.patreon_dlc.advanced_lithology.create_dialog(self.current_well, self)
+            dialog.exec_()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error abriendo análisis litológico IA:\n{str(e)}")
+    
+    def open_ai_interpreter(self):
+        """Abrir interpretador automático de IA."""
+        try:
+            if not self.current_well:
+                QMessageBox.warning(self, "Advertencia", "Seleccione un pozo primero")
+                return
+            
+            # Llamar al DLC
+            dialog = self.patreon_dlc.ai_interpreter.create_dialog(self.current_well, self)
+            dialog.exec_()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error abriendo interpretador IA:\n{str(e)}")
+    
     def show_patreon_info(self):
         """Mostrar información del DLC Patreon."""
         info_text = """
@@ -5512,6 +5883,11 @@ Envíame un mensaje directo en Patreon y te ayudo personalmente.
         """
         
         QMessageBox.information(self, "📥 Descarga DLC Premium", download_text)
+
+    def show_download_instructions(self):
+        """Mostrar instrucciones de descarga para suscriptores."""
+        # Reutilizar la funcionalidad existente
+        self.download_patreon_dlc()
 
 
 if __name__ == "__main__":
