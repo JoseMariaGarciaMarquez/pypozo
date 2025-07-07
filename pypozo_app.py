@@ -93,6 +93,14 @@ class WellLoadThread(QThread):
             self.error_occurred.emit(str(e))
 
 class PyPozoApp(QMainWindow):
+    def update_normal_sizes(self):
+        """Guardar los tamaños actuales del splitter SOLO si ambos paneles están visibles y sus tamaños son > 0."""
+        sizes = self.main_splitter.sizes()
+        # Solo guardar si ambos paneles están visibles y sus tamaños son razonables
+        if self.left_panel.isVisible() and self.right_panel.isVisible() and sizes[0] > 0 and sizes[2] > 0:
+            # Evitar guardar tamaños con ceros
+            self.normal_sizes = list(sizes)
+
     """
     Aplicación principal de PyPozo 2.0.
     
@@ -319,30 +327,32 @@ class PyPozoApp(QMainWindow):
         layout.addWidget(self.canvas)
         
         return panel
-    
+
+
     def create_right_panel(self) -> QWidget:
         """Panel derecho - Herramientas."""
         panel = QWidget()
         panel.setObjectName("rightPanel")
-        panel.setMinimumWidth(0)  # Permitir colapso completo
+        panel.setMinimumWidth(180)  # Nunca permitir colapso total
+        panel.setMinimumHeight(200)
+        from PyQt5.QtWidgets import QSizePolicy  # Importar aquí para evitar NameError
+        panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(5, 5, 5, 5)  # Márgenes normales
-        layout.setSpacing(5)  # Espaciado normal
-        
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
+
         # Título
         title = QLabel("🔧 Herramientas")
         title.setFont(QFont("Arial", 12, QFont.Bold))
         title.setStyleSheet("color: #2E8B57; margin: 5px;")
+        title.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        title.setMaximumHeight(32)
         layout.addWidget(title)
-        
+
         # Tabs - Configuración normal
         self.tools_tabs = QTabWidget()
-        
-        # Configuración normal de pestañas
         self.tools_tabs.setTabPosition(QTabWidget.North)
         self.tools_tabs.setUsesScrollButtons(True)
-        
-        # Aplicar estilo normal a las pestañas
         self.tools_tabs.setStyleSheet("""
             QTabWidget::pane {
                 border: 1px solid #dee2e6;
@@ -370,29 +380,30 @@ class PyPozoApp(QMainWindow):
                 color: white;
             }
         """)
-        
+
         # Tab 1: Selección de curvas
         curves_tab = self.create_curves_tab()
         self.tools_tabs.addTab(curves_tab, "📊 Curvas")
-        
+
         # Tab 2: Comparación
         comparison_tab = self.create_comparison_tab()
         self.tools_tabs.addTab(comparison_tab, "⚖️ Comparar")
-        
+
         # Tab 3: Análisis
         analysis_tab = self.create_analysis_tab()
         self.tools_tabs.addTab(analysis_tab, "🔬 Análisis")
-        
+
         # Tab 4: Petrofísica
         petrophysics_tab = self.create_petrophysics_tab()
         self.tools_tabs.addTab(petrophysics_tab, "🧪 Petrofísica")
-        
+
         # Tab 5: Premium DLC
         premium_tab = self.create_premium_dlc_tab()
         self.tools_tabs.addTab(premium_tab, "🌟 Premium IA")
-        
+
+        self.tools_tabs.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         layout.addWidget(self.tools_tabs)
-        
+
         return panel
     
     def create_curves_tab(self) -> QWidget:
@@ -1551,84 +1562,124 @@ class PyPozoApp(QMainWindow):
     
     def toggle_left_panel(self):
         """Alternar visibilidad del panel izquierdo."""
-        # Guardar tamaño actual de la ventana para evitar redimensionamiento
-        current_geometry = self.geometry()
-        
-        if self.left_panel_visible:
+        self.update_normal_sizes()
+        sizes = self.main_splitter.sizes()
+        if self.left_panel_visible and sizes[0] > 0:
             # Ocultar panel izquierdo
             self.left_panel.hide()
             self.toggle_left_btn.setText("▶")
             self.toggle_left_btn.setToolTip("Mostrar panel izquierdo")
             self.left_panel_visible = False
-            # Ajustar tamaños
-            current_sizes = self.main_splitter.sizes()
-            new_sizes = [0, current_sizes[1] + current_sizes[0], current_sizes[2]]
-            self.main_splitter.setSizes(new_sizes)
+            # El panel central debe ocupar el espacio del izquierdo
+            self.main_splitter.setSizes([0, sizes[1] + sizes[0], sizes[2]])
         else:
             # Mostrar panel izquierdo
             self.left_panel.show()
             self.toggle_left_btn.setText("◀")
             self.toggle_left_btn.setToolTip("Ocultar panel izquierdo")
             self.left_panel_visible = True
-            # Restaurar tamaños
-            if self.right_panel_visible:
-                self.main_splitter.setSizes(self.normal_sizes)
+            # Restaurar SOLO si ambos paneles estarán visibles
+            if self.right_panel.isVisible():
+                # Restaurar ambos paneles, nunca permitir ceros
+                restored = list(self.normal_sizes)
+                if restored[0] <= 0:
+                    restored[0] = 250
+                if restored[2] <= 0:
+                    restored[2] = 250
+                ancho_total = self.main_splitter.size().width()
+                restored[1] = max(ancho_total - restored[0] - restored[2], 100)
+                self.main_splitter.setSizes(restored)
             else:
-                self.main_splitter.setSizes([250, 1350, 0])
-        
-        # Restaurar el tamaño de la ventana para evitar cambios indeseados
-        self.setGeometry(current_geometry)
+                # Restaurar solo izquierdo y central, nunca permitir cero
+                ancho_izq = self.normal_sizes[0] if self.normal_sizes[0] > 0 else 250
+                ancho_central = self.main_splitter.size().width() - ancho_izq
+                if ancho_central < 100:
+                    ancho_central = 100
+                self.main_splitter.setSizes([ancho_izq, ancho_central, 0])
     
     def toggle_right_panel(self):
         """Alternar visibilidad del panel derecho."""
-        # Guardar tamaño actual de la ventana para evitar redimensionamiento
-        current_geometry = self.geometry()
-        
-        if self.right_panel_visible:
+        self.update_normal_sizes()
+        sizes = self.main_splitter.sizes()
+        min_side = 250
+        min_center = 100
+        ancho_total = self.main_splitter.size().width()
+        if self.right_panel_visible and sizes[2] > 0:
             # Ocultar panel derecho
             self.right_panel.hide()
             self.toggle_right_btn.setText("◀")
             self.toggle_right_btn.setToolTip("Mostrar panel derecho")
             self.right_panel_visible = False
-            # Ajustar tamaños
-            current_sizes = self.main_splitter.sizes()
-            new_sizes = [current_sizes[0], current_sizes[1] + current_sizes[2], 0]
-            self.main_splitter.setSizes(new_sizes)
+            # El panel central debe ocupar el espacio del derecho
+            self.main_splitter.setSizes([sizes[0], sizes[1] + sizes[2], 0])
         else:
             # Mostrar panel derecho
             self.right_panel.show()
             self.toggle_right_btn.setText("▶")
             self.toggle_right_btn.setToolTip("Ocultar panel derecho")
             self.right_panel_visible = True
-            # Restaurar tamaños
-            if self.left_panel_visible:
-                self.main_splitter.setSizes(self.normal_sizes)
+            # Siempre restaurar con mínimo para el panel derecho
+            if self.left_panel.isVisible():
+                # Ambos paneles visibles
+                restored = list(self.normal_sizes)
+                # Forzar mínimo para ambos lados
+                if restored[0] < min_side:
+                    restored[0] = min_side
+                if restored[2] < min_side:
+                    restored[2] = min_side
+                # Ajustar central
+                restored[1] = max(ancho_total - restored[0] - restored[2], min_center)
+                # Si el central quedó muy chico, reducir ambos lados proporcionalmente
+                if restored[1] == min_center:
+                    extra = (restored[0] + restored[2]) - (ancho_total - min_center)
+                    if extra > 0:
+                        # Reducir ambos lados proporcionalmente
+                        left_reduce = int(extra / 2)
+                        right_reduce = extra - left_reduce
+                        restored[0] = max(min_side, restored[0] - left_reduce)
+                        restored[2] = max(min_side, restored[2] - right_reduce)
+                self.main_splitter.setSizes(restored)
             else:
-                self.main_splitter.setSizes([0, 1350, 250])
-        
-        # Restaurar el tamaño de la ventana para evitar cambios indeseados
-        self.setGeometry(current_geometry)
+                # Solo central y derecho
+                ancho_der = self.normal_sizes[2] if self.normal_sizes[2] >= min_side else min_side
+                ancho_central = ancho_total - ancho_der
+                if ancho_central < min_center:
+                    ancho_central = min_center
+                    ancho_der = max(min_side, ancho_total - min_center)
+                self.main_splitter.setSizes([0, ancho_central, ancho_der])
+            # Forzar un update del layout para evitar el bug visual
+            self.main_splitter.parentWidget().updateGeometry()
+            self.main_splitter.parentWidget().repaint()
+            self.main_splitter.updateGeometry()
+            self.main_splitter.repaint()
     
     def toggle_both_panels(self):
         """Alternar ambos paneles a la vez (modo full screen gráficas)."""
-        # Guardar tamaño actual de la ventana para evitar redimensionamiento
-        current_geometry = self.geometry()
-        
-        if self.left_panel_visible or self.right_panel_visible:
+        self.update_normal_sizes()
+        sizes = self.main_splitter.sizes()
+        if self.left_panel_visible and self.right_panel_visible and sizes[0] > 0 and sizes[2] > 0:
             # Ocultar ambos paneles
-            if self.left_panel_visible:
-                self.toggle_left_panel()
-            if self.right_panel_visible:
-                self.toggle_right_panel()
+            self.left_panel.hide()
+            self.right_panel.hide()
+            self.left_panel_visible = False
+            self.right_panel_visible = False
+            self.main_splitter.setSizes([0, sizes[0] + sizes[1] + sizes[2], 0])
         else:
             # Mostrar ambos paneles
-            if not self.left_panel_visible:
-                self.toggle_left_panel()
-            if not self.right_panel_visible:
-                self.toggle_right_panel()
-        
-        # Restaurar el tamaño de la ventana para evitar cambios indeseados
-        self.setGeometry(current_geometry)
+            self.left_panel.show()
+            self.right_panel.show()
+            self.left_panel_visible = True
+            self.right_panel_visible = True
+            # Restaurar tamaños, pero nunca permitir ceros
+            restored = list(self.normal_sizes)
+            if restored[0] <= 0:
+                restored[0] = 250
+            if restored[2] <= 0:
+                restored[2] = 250
+            ancho_total = self.main_splitter.size().width()
+            # Ajustar el central para que la suma sea igual al ancho total
+            restored[1] = max(ancho_total - restored[0] - restored[2], 100)
+            self.main_splitter.setSizes(restored)
 
     # ========== FUNCIONALIDADES PRINCIPALES ==========
     
