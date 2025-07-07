@@ -514,11 +514,11 @@ class PyPozoApp(QMainWindow):
         
         # Botón Premium para Completado Inteligente - siempre visible
         if self.has_patreon_dlc:
-            self.premium_completion_btn = QPushButton("🤖 Completado Inteligente IA - ¡ACTIVO!")
+            self.premium_completion_btn = QPushButton("🤖 Completado Intra-Pozo IA - ¡ACTIVO!")
             self.premium_completion_btn.clicked.connect(self.open_neural_completion)
             self.premium_completion_btn.setStyleSheet("background-color: #28a745; color: white; font-weight: bold; padding: 12px; font-size: 13px;")
         else:
-            self.premium_completion_btn = QPushButton("🤖 Completado Inteligente IA ✨ ¡DESBLOQUEAR!")
+            self.premium_completion_btn = QPushButton("🤖 Completado Intra-Pozo IA ✨ ¡DESBLOQUEAR!")
             self.premium_completion_btn.clicked.connect(self.show_patreon_invitation)
             self.premium_completion_btn.setStyleSheet("background-color: #ff6b35; color: white; font-weight: bold; padding: 12px; font-size: 13px; border: 2px solid #ffd700;")
         
@@ -1221,12 +1221,12 @@ class PyPozoApp(QMainWindow):
             completion_group = QGroupBox("🤖 Completado Inteligente con IA")
             completion_layout = QVBoxLayout(completion_group)
             
-            completion_desc = QLabel("Usa redes neuronales para completar registros faltantes basándose en pozos similares y patrones geológicos.")
+            completion_desc = QLabel("Usa redes neuronales para completar curvas incompletas dentro del mismo pozo usando correlaciones entre curvas completas e incompletas.")
             completion_desc.setWordWrap(True)
             completion_desc.setStyleSheet("color: #666; font-style: italic; margin: 5px;")
             completion_layout.addWidget(completion_desc)
             
-            self.neural_completion_btn = QPushButton("🧠 Abrir Completado Neural")
+            self.neural_completion_btn = QPushButton("🧠 Abrir Completado Neural Intra-Pozo")
             self.neural_completion_btn.clicked.connect(self.open_neural_completion)
             self.neural_completion_btn.setStyleSheet("background-color: #007bff; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
             completion_layout.addWidget(self.neural_completion_btn)
@@ -5645,19 +5645,32 @@ Sw = (({a} × {rw}) / ({phi_sample:.3f}^{m} × {rt_sample:.1f}))^(1/{n})
             patreon_menu.addAction('📥 Ya soy Patreon - Descargar DLC', self.download_patreon_dlc)
     
     def open_neural_completion(self):
-        """Abrir diálogo de completado de registros con IA."""
+        """Abrir diálogo de completado intra-pozo con IA."""
         try:
-            if len(self.wells) < 2:
+            if len(self.wells) < 1:
                 QMessageBox.warning(self, "Advertencia", 
-                                  "Se requieren al menos 2 pozos para el completado inteligente")
+                                  "Se requiere al menos 1 pozo para el completado inteligente intra-pozo")
                 return
             
-            # Llamar al DLC
+            if not self.has_patreon_dlc:
+                self.show_patreon_invitation()
+                return
+            
+            # Llamar al DLC con el nuevo workflow intra-pozo
             dialog = self.patreon_dlc.create_completion_dialog(self.wells, self)
-            dialog.exec_()
+            result = dialog.exec_()
+            
+            # Si el completado fue exitoso, actualizar la interfaz
+            if result == QDialog.Accepted:
+                self.log_activity("🤖 Completado neural intra-pozo ejecutado exitosamente")
+                # Refrescar la vista de curvas si hay un pozo seleccionado
+                if self.current_well:
+                    self.update_curves_list()
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error abriendo completado IA:\n{str(e)}")
+            error_msg = f"Error abriendo completado IA:\n{str(e)}"
+            logger.error(error_msg)
+            QMessageBox.critical(self, "Error", error_msg)
     
     def open_advanced_analysis(self):
         """Abrir análisis avanzado."""
@@ -5747,12 +5760,13 @@ Sw = (({a} × {rw}) / ({phi_sample:.3f}^{m} × {rt_sample:.1f}))^(1/{n})
 <p><b>Funcionalidades experimentales con IA</b> que transformarán tu flujo de trabajo de análisis de pozos.</p>
 </div>
 
-<h3>🤖 Completado Inteligente de Registros con LSTM</h3>
+<h3>🤖 Completado Inteligente Intra-Pozo con LSTM</h3>
 <ul>
-<li>🎯 <b>Redes Neuronales LSTM</b> que aprenden patrones entre tus curvas</li>
-<li>⚡ <b>Extiende registros automáticamente</b> a rangos completos de profundidad</li>
-<li>📊 <b>Elimina gaps y valores faltantes</b> con precisión de experto</li>
+<li>🎯 <b>Redes Neuronales LSTM</b> que aprenden patrones entre curvas del mismo pozo</li>
+<li>⚡ <b>Extiende curvas incompletas automáticamente</b> usando correlaciones internas</li>
+<li>📊 <b>Elimina gaps y completa rangos faltantes</b> con precisión neural</li>
 <li>✅ <b>Validación cruzada en tiempo real</b> con métricas de confianza</li>
+<li>🔬 <b>Análisis inteligente de rangos</b> por cada curva individual</li>
 </ul>
 
 <h3>🧠 Análisis Petrofísico Avanzado con Machine Learning</h3>
