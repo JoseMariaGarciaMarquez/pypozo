@@ -1,0 +1,85 @@
+REPORTE DE ANÁLISIS PETROFÍSICO AVANZADO
+Pozo: ARIEL-1
+Fecha: 2025-07-07 13:02:44
+============================================================
+
+📊 ANÁLISIS DE CALIDAD DE DATOS
+========================================
+✅ CURVAS EXCELENTES (>95%): 7
+   • CALI: 99.7% completo
+   • CILD: 99.8% completo
+   • DT: 99.6% completo
+   • ILD: 99.8% completo
+   • SN: 99.8% completo
+
+⚠️ CURVAS REGULARES (80-95%): 0
+
+❌ CURVAS POBRES (<80%): 11
+   • DPHI: 49.8% completo
+   • DRHO: 49.8% completo
+   • GR: 51.4% completo
+
+🔍 OUTLIERS DETECTADOS: 1139 valores atípicos
+
+💡 RECOMENDACIONES:
+   • Revisar curvas con baja completitud: DPHI, DRHO, GR
+   • Investigar 1139 valores anómalos detectados
+   • Calidad general: REGULAR
+
+🔍 DETECCIÓN DE ANOMALÍAS
+========================================
+⚠️ ANOMALÍAS DETECTADAS EN 6 CURVAS:
+
+🟡 CALI:
+   • 0 valores extremos (Z>4)
+   • 70 valores moderados (3<Z≤4)
+   • Severidad: MEDIA
+
+🟡 DPHI:
+   • 0 valores extremos (Z>4)
+   • 23 valores moderados (3<Z≤4)
+   • Severidad: MEDIA
+
+🟡 DRHO:
+   • 1 valores extremos (Z>4)
+   • 49 valores moderados (3<Z≤4)
+   • Severidad: MEDIA
+
+🔴 DT:
+   • 6 valores extremos (Z>4)
+   • 38 valores moderados (3<Z≤4)
+   • Severidad: ALTA
+
+🔴 ILD:
+   • 49 valores extremos (Z>4)
+   • 62 valores moderados (3<Z≤4)
+   • Severidad: ALTA
+
+🔴 MINV:
+   • 146 valores extremos (Z>4)
+   • 92 valores moderados (3<Z≤4)
+   • Severidad: ALTA
+
+💡 ACCIONES RECOMENDADAS:
+   • URGENTE: Revisar DT, ILD, MINV
+   • Verificar condiciones de adquisición en profundidades anómalas
+   • Considerar filtrado o suavizado en zonas problemáticas
+
+
+🧬 ANÁLISIS DE CORRELACIONES
+========================================
+🔗 CORRELACIONES FUERTES (|r| > 0.7): 5
+   • GR ↔ DT: r = 0.784 (directa)
+   • NPHI ↔ DT: r = 0.726 (directa)
+   • RHOB ↔ NPHI: r = -0.708 (inversa)
+   • GR ↔ NPHI: r = 0.708 (directa)
+   • RHOB ↔ DT: r = -0.707 (inversa)
+
+📊 CORRELACIONES MODERADAS (0.4 ≤ |r| ≤ 0.7): 5
+   • SP ↔ CALI: r = 0.674 (directa)
+   • GR ↔ RHOB: r = -0.615 (inversa)
+   • GR ↔ SP: r = 0.608 (directa)
+
+🔬 INTERPRETACIÓN PETROFÍSICA:
+   ✅ Correlación RHOB-NPHI negativa típica (porosidad vs densidad)
+   📈 GR muestra 2 correlaciones fuertes (variaciones litológicas)

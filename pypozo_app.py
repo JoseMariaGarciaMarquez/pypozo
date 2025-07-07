@@ -5955,11 +5955,108 @@ Envíame un mensaje directo en Patreon y te ayudo personalmente.
         self.download_patreon_dlc()
 
 
+
+# Custom splash imports (moved up for clarity)
+from PyQt5.QtWidgets import QSplashScreen, QDialog, QVBoxLayout, QLabel, QProgressBar
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QPixmap
+
 if __name__ == "__main__":
+    import sys
+    import time
+    from pathlib import Path
+    from PyQt5.QtWidgets import QApplication
     if not PYQT5_AVAILABLE:
         print("❌ PyQt5 no está disponible. Instale PyQt5 para usar la GUI: pip install PyQt5")
         sys.exit(1)
     app = QApplication(sys.argv)
+
+    # --- Custom SplashScreen with progress bar and dynamic messages ---
+    class CustomSplashScreen(QDialog):
+        def __init__(self, logo_path, parent=None):
+            super().__init__(parent)
+            self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+            self.setAttribute(Qt.WA_TranslucentBackground)
+            self.setModal(True)
+            self.setFixedSize(480, 340)
+
+            layout = QVBoxLayout(self)
+            layout.setContentsMargins(30, 30, 30, 30)
+            layout.setSpacing(18)
+
+            # Logo
+            pixmap = QPixmap(logo_path)
+            logo_label = QLabel()
+            logo_label.setPixmap(pixmap.scaled(160, 160, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            logo_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(logo_label)
+
+            # Status message
+            self.status_label = QLabel("Cargando PyPozo...")
+            self.status_label.setAlignment(Qt.AlignCenter)
+            self.status_label.setStyleSheet("font-size: 18px; color: #2E8B57; font-weight: bold;")
+            layout.addWidget(self.status_label)
+
+            # Progress bar
+            self.progress = QProgressBar()
+            self.progress.setMinimum(0)
+            self.progress.setMaximum(100)
+            self.progress.setValue(0)
+            self.progress.setTextVisible(False)
+            self.progress.setFixedHeight(22)
+            self.progress.setStyleSheet('''
+                QProgressBar {
+                    background-color: #f0f0f0;
+                    border: 2px solid #2E8B57;
+                    border-radius: 8px;
+                }
+                QProgressBar::chunk {
+                    background-color: #2E8B57;
+                    border-radius: 8px;
+                }
+            ''')
+            layout.addWidget(self.progress)
+
+            # Copyright/info
+            copyright = QLabel("PyPozo v2.0 © 2025")
+            copyright.setAlignment(Qt.AlignCenter)
+            copyright.setStyleSheet("color: #888; font-size: 12px;")
+            layout.addWidget(copyright)
+
+        def set_status(self, text):
+            self.status_label.setText(text)
+            QApplication.processEvents()
+
+        def set_progress(self, value):
+            self.progress.setValue(value)
+            QApplication.processEvents()
+
+    # --- Show splash ---
+    logo_path = str(Path(__file__).parent / "images" / "icono.png")
+    splash = CustomSplashScreen(logo_path)
+    splash.show()
+    app.processEvents()
+
+    # Simulate loading steps with progress and messages
+    splash.set_status("Cargando PyPozo...")
+    for i in range(0, 30, 5):
+        splash.set_progress(i)
+        time.sleep(0.05)
+
+    splash.set_status("Buscando DLC Patreon...")
+    for i in range(30, 65, 7):
+        splash.set_progress(i)
+        time.sleep(0.08)
+
+    splash.set_status("Inicializando interfaz gráfica...")
+    for i in range(65, 100, 7):
+        splash.set_progress(i)
+        time.sleep(0.06)
+    splash.set_progress(100)
+    time.sleep(0.2)
+
+    # Crear ventana principal
     window = PyPozoApp()
     window.show()
+    splash.close()
     sys.exit(app.exec_())
