@@ -61,11 +61,11 @@ def load_patreon_features():
     """Cargar características de Patreon si están disponibles."""
     if check_patreon_dlc():
         try:
-            import sys
-            sys.path.insert(0, str(Path(__file__).parent / "patreon_dlc"))
-            import neural_completion
-            return neural_completion
-        except ImportError:
+            # Importar loader del paquete patreon_dlc
+            from patreon_dlc.loader import load_patreon_features as real_loader
+            return real_loader()
+        except Exception as e:
+            print(f"[DLC] Error cargando loader: {e}")
             return None
     return None
 
@@ -5696,32 +5696,26 @@ Sw = (({a} × {rw}) / ({phi_sample:.3f}^{m} × {rt_sample:.1f}))^(1/{n})
             patreon_menu.addAction('📥 Ya soy Patreon - Descargar DLC', self.download_patreon_dlc)
     
     def open_neural_completion(self):
-        """Abrir diálogo de completado intra-pozo con IA."""
+        """Abrir diálogo de completado neuronal de curvas (DLC)."""
         try:
-            if len(self.wells) < 1:
-                QMessageBox.warning(self, "Advertencia", 
-                                  "Se requiere al menos 1 pozo para el completado inteligente intra-pozo")
+            if not getattr(self, 'has_patreon_dlc', False) or not hasattr(self, 'patreon_dlc'):
+                QMessageBox.warning(self, "Función Premium", "Esta función requiere el DLC de Patreon.\nDescárgalo e instálalo para acceder a las funciones IA.")
                 return
-            
-            if not self.has_patreon_dlc:
-                self.show_patreon_invitation()
+            if not self.wells or len(self.wells) == 0:
+                QMessageBox.warning(self, "Advertencia", "Se requiere al menos 1 pozo para el completado neuronal.")
                 return
-            
-            # Llamar al DLC con el nuevo workflow intra-pozo
-            dialog = self.patreon_dlc.create_completion_dialog(self.wells, self)
+            create_completion_dialog = getattr(self.patreon_dlc, 'create_completion_dialog', None)
+            if create_completion_dialog is None:
+                QMessageBox.critical(self, "Error", "No se encontró la función 'create_completion_dialog' en el DLC.")
+                return
+            dialog = create_completion_dialog(self.wells, self)
             result = dialog.exec_()
-            
-            # Si el completado fue exitoso, actualizar la interfaz
             if result == QDialog.Accepted:
-                self.log_activity("🤖 Completado neural intra-pozo ejecutado exitosamente")
-                # Refrescar la vista de curvas si hay un pozo seleccionado
+                self.log_activity("🤖 Completado neuronal ejecutado exitosamente")
                 if self.current_well:
                     self.update_curves_list()
-            
         except Exception as e:
-            error_msg = f"Error abriendo completado IA:\n{str(e)}"
-            logger.error(error_msg)
-            QMessageBox.critical(self, "Error", error_msg)
+            QMessageBox.critical(self, "Error", f"Error abriendo completado neuronal:\n{str(e)}")
     
     def open_advanced_analysis(self):
         """Abrir análisis avanzado."""

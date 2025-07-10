@@ -1,0 +1,41 @@
+name: pozoenv
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - pyqt
+  - pyqtgraph
+  - scikit-learn
+  # - tensorflow  # Install this separately after environment creation to avoid large download issues
+  - seaborn
+  - statsmodels
+  - jupyter
+  - ipykernel
+  - pip
+  - pip:
+      - lasio
+      - loguru
+      - pyperclip
+      - openpyxl
+      - xlrd
+      - xlwt
+      - pyarrow
+      - rich
+      - qtawesome
+      - qdarkstyle
+      - pyqt5-tools
+      - pyqt5-plugins
+      - pyqtwebengine
+      - pyqt6  # (opcional, si quieres soporte futuro)
+      - pyinstaller  
+      - pytest
+      - black
+      - isort
+      - welly  
+# After creating the environment, run:
+# conda activate pozoenvironment
+# conda install tensorflow
