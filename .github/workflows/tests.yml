@@ -45,7 +45,7 @@ jobs:
     
     - name: Run basic tests
       run: |
-        python -m pytest tests/test_basic.py tests/test_quick_check.py -v
+        python -m pytest tests/test_basic.py tests/test_quick_check.py -v --tb=short
       
     - name: Run core tests
       run: |
