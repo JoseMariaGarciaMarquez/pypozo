@@ -5,10 +5,57 @@
   
   **🚀 Sistema Profesional de Análisis de Pozos - COMPLETAMENTE FUNCIONAL**
   
-  [![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
+  [![Python](https://i### 🖥️ **Uso con Interfaz Gráfica (GUI) - Recomendado**
+
+```bash
+# Lanzar la aplicación gráfica
+python pypozo_app.py
+
+# O usar el script con sistema Pozo Inteligente
+python launch_pypozo_smart_well.py
+```
+
+**Funcionalidades de la GUI:**
+- 🎉 **Diálogo de Bienvenida**: Al iniciar aparece un diálogo elegante con:
+  - Botones directos a **Buy Me a Coffee** para apoyar el proyecto
+  - Enlaces a GitHub y documentación
+  - Información sobre la misión del proyecto
+  - Acceso a la comunidad open source
+- 📂 **Cargar Pozos**: Arrastrar y soltar archivos LAS o usar el explorador
+- 🎨 **Visualización Avanzada**: 
+  - Gráficos individuales por curva
+  - **🔗 Graficar Juntas**: Superponer múltiples curvas en la misma figura
+  - Normalización automática para comparación visual
+- ⚡ **Selección Inteligente**: 
+  - Botón "⚡ Eléctricas" detecta automáticamente curvas de resistividad
+  - Presets para curvas básicas, petrofísicas y acústicas
+- 🧠 **Sistema Pozo Inteligente**: Funciones premium de IA (requiere patrocinio Patreon)
+- 📊 **Análisis Automático**: Escala logarítmica para curvas eléctricas
+- 💾 **Exportación**: Guardar gráficos en PNG, PDF, SVG
+- ⚖️ **Comparación**: Analizar múltiples pozos simultáneamente/Python-3.8%2B-blue.svg)](https://www.python.org/)
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
   [![Version](https://img.shields.io/badge/Version-2.0.0-orange.svg)](pyproject.toml)
   [![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg)]()
+  
+  ---
+  
+  ### ☕ **¿Te gusta PyPozo?** ¡Apoya su desarrollo continuo!
+  
+  [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/ingjoma)
+  
+  **🙏 Tu apoyo mantiene PyPozo gratuito y en constante evolución**
+  
+  💡 **¿Por qué apoyar PyPozo?**
+  - 🚀 Nuevas funcionalidades geofísicas avanzadas
+  - 🧠 Algoritmos de IA y Machine Learning para análisis petrofísico
+  - 🛠️ Soporte técnico directo y actualizaciones prioritarias
+  - 🌍 Herramientas profesionales gratuitas para toda la comunidad geofísica
+  - ⚡ Funciones premium exclusivas para patrocinadores (Sistema Pozo Inteligente)
+  
+  📋 **[Ver todas las formas de apoyo →](SUPPORT_PYPOZO.md)**
+  
+  ---
+  
 </div>
 
 **PyPozo 2.0** es una aplicación GUI profesional para análisis de pozos petroleros que **rivaliza con software comercial** como WellCAD y Petrel. Desarrollado completamente en Python, ofrece una interfaz moderna, análisis petrofísico avanzado y capacidades de fusión de pozos únicas en el ecosistema open-source.
@@ -28,6 +75,21 @@
 - ✅ **Layout intuitivo** de 3 paneles optimizado para workflows
 - ✅ **Threading avanzado** para operaciones no-bloqueantes
 - ✅ **Logging en tiempo real** de todas las actividades
+- ✅ **Diálogo de bienvenida** con acceso directo a Buy Me a Coffee y GitHub
+
+### 💖 **Sistema de Apoyo Integrado**
+- ✅ **Diálogo de bienvenida interactivo** al inicio de la aplicación
+- ✅ **Botones directos** a Buy Me a Coffee, GitHub y documentación
+- ✅ **Promoción elegante** sin interrumpir el flujo de trabajo
+- ✅ **Mensajes informativos** sobre el proyecto y su misión
+- ✅ **Invitaciones a la comunidad** open source
+
+### 🎯 **Modelo Freemium Inteligente**
+- ✅ **Funcionalidad base completa** siempre gratuita
+- ✅ **Sistema Pozo Inteligente** exclusivo para patrocinadores Patreon
+- ✅ **Detección automática** del DLC premium
+- ✅ **Experiencia fluida** con invitaciones elegantes a funciones premium
+- ✅ **Arquitectura modular** que permite extensibilidad
 
 ### 🔬 **Análisis Petrofísico Completo**
 - ✅ **4 pestañas especializadas** con interfaces dedicadas:

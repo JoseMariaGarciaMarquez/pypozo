@@ -91,11 +91,16 @@ python pypozo_app.py
    python pypozo_app.py
    ```
 
-2. **Cargar un pozo**:
+2. **Diálogo de bienvenida**:
+   - Al iniciar aparece automáticamente el diálogo de bienvenida
+   - Explora los botones de Buy Me a Coffee, GitHub y documentación
+   - Haz clic en "🚀 ¡Empezar con PyPozo!" para continuar
+
+3. **Cargar un pozo**:
    - Botón "📂 Cargar Pozo" → Seleccionar archivo `.las`
    - El pozo aparecerá en el explorador izquierdo
 
-3. **Visualizar curvas**:
+4. **Visualizar curvas**:
    - Seleccionar curvas en la pestaña "📊 Curvas"
    - Hacer clic en "🎨 Graficar Seleccionadas"
 
@@ -137,6 +142,25 @@ well.add_curve("VCL", result['vcl'], units="fraction")
 ---
 
 ## 🖥️ Manual de la Aplicación GUI
+
+### 🎉 Diálogo de Bienvenida
+
+Al iniciar PyPozo por primera vez, aparece un elegante **diálogo de bienvenida** que incluye:
+
+**Características del diálogo**:
+- **💡 Información del proyecto**: Descripción de PyPozo como alternativa open source profesional
+- **☕ Buy Me a Coffee**: Botón directo para apoyar el desarrollo del proyecto
+- **⭐ GitHub**: Enlace al repositorio para dar estrellas y seguir actualizaciones
+- **📚 Documentación**: Acceso directo a manuales y guías
+- **🚀 Continuar**: Botón para comenzar a usar PyPozo
+
+**Propósito del diálogo**:
+- Informar a los usuarios sobre la misión del proyecto
+- Facilitar el apoyo a través de donaciones
+- Conectar con la comunidad open source
+- Proporcionar acceso rápido a recursos importantes
+
+**Nota**: Este diálogo aparece automáticamente al iniciar PyPozo y puede cerrarse en cualquier momento para comenzar el análisis.
 
 ### Interfaz Principal
 

@@ -18,7 +18,19 @@ import traceback
 import numpy as np
 from pathlib import Path
 import pandas as pd
+# Integración PozoChatWindow
+from pozochat._pozochat_import_temp import POZOCHAT_AVAILABLE
+if POZOCHAT_AVAILABLE:
+    from pozochat.pozochat_gui import PozoChatWindow
 from typing import List, Optional, Dict, Any
+
+# Importar diálogo de bienvenida
+try:
+    from welcome_dialog import show_welcome_dialog
+    WELCOME_DIALOG_AVAILABLE = True
+except ImportError:
+    WELCOME_DIALOG_AVAILABLE = False
+    print("⚠️ Diálogo de bienvenida no disponible")
 
 # Agregar src al path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -139,6 +151,9 @@ class PyPozoApp(QMainWindow):
         
         logger.info("🚀 PyPozo App iniciada")
         self.status_bar.showMessage("✅ PyPozo App lista para usar")
+        
+        # Mostrar diálogo de bienvenida con promoción Buy Me a Coffee
+        self.show_welcome_dialog()
     
     def init_ui(self):
         """Inicializar la interfaz de usuario."""
@@ -397,9 +412,9 @@ class PyPozoApp(QMainWindow):
         petrophysics_tab = self.create_petrophysics_tab()
         self.tools_tabs.addTab(petrophysics_tab, "🧪 Petrofísica")
 
-        # Tab 5: Premium DLC
+        # Tab 5: Pozo Inteligente DLC
         premium_tab = self.create_premium_dlc_tab()
-        self.tools_tabs.addTab(premium_tab, "🌟 Premium IA")
+        self.tools_tabs.addTab(premium_tab, "🧠 Pozo Inteligente")
 
         self.tools_tabs.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         layout.addWidget(self.tools_tabs)
@@ -523,15 +538,15 @@ class PyPozoApp(QMainWindow):
         # Separador visual
         layout.addWidget(QLabel(""))
         
-        # Botón Premium para Completado Inteligente - siempre visible
+        # Botón Pozo Inteligente - siempre visible
         if self.has_patreon_dlc:
-            self.premium_completion_btn = QPushButton("🤖 Completado Intra-Pozo IA - ¡ACTIVO!")
+            self.premium_completion_btn = QPushButton("� Pozo Inteligente - ¡ACTIVO!")
             self.premium_completion_btn.clicked.connect(self.open_neural_completion)
-            self.premium_completion_btn.setStyleSheet("background-color: #28a745; color: white; font-weight: bold; padding: 12px; font-size: 13px;")
+            self.premium_completion_btn.setStyleSheet("background-color: #3f51b5; color: white; font-weight: bold; padding: 12px; font-size: 13px; border-radius: 6px;")
         else:
-            self.premium_completion_btn = QPushButton("🤖 Completado Intra-Pozo IA ✨ ¡DESBLOQUEAR!")
+            self.premium_completion_btn = QPushButton("� Pozo Inteligente ✨ ¡DESBLOQUEAR!")
             self.premium_completion_btn.clicked.connect(self.show_patreon_invitation)
-            self.premium_completion_btn.setStyleSheet("background-color: #ff6b35; color: white; font-weight: bold; padding: 12px; font-size: 13px; border: 2px solid #ffd700;")
+            self.premium_completion_btn.setStyleSheet("background-color: #ff6b35; color: white; font-weight: bold; padding: 12px; font-size: 13px; border: 2px solid #ffd700; border-radius: 6px;")
         
         layout.addWidget(self.premium_completion_btn)
         
@@ -1207,86 +1222,78 @@ class PyPozoApp(QMainWindow):
         return tab
 
     def create_premium_dlc_tab(self) -> QWidget:
-        """Tab para funcionalidades Premium/DLC de Patreon."""
+        """Tab para funcionalidades del sistema 'Pozo Inteligente' DLC de Patreon."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         
         if self.has_patreon_dlc:
-            # DLC PRESENTE: Mostrar UI premium completa
-            title = QLabel("🌟 Premium IA - ¡ACTIVO!")
+            # DLC PRESENTE: Mostrar UI del Pozo Inteligente completa
+            title = QLabel("🧠 Pozo Inteligente - ¡ACTIVO!")
             title.setFont(QFont("Arial", 16, QFont.Bold))
-            title.setStyleSheet("color: #28a745; margin: 10px; text-align: center;")
+            title.setStyleSheet("color: #1a237e; margin: 10px; text-align: center;")
             title.setAlignment(Qt.AlignCenter)
             layout.addWidget(title)
-            
+
             # Información de suscripción activa
-            subscription_info = QLabel("✅ Suscripción Patreon Activa - Nivel 3 ($15/mes)")
-            subscription_info.setStyleSheet("color: #28a745; font-weight: bold; background-color: #d4edda; padding: 8px; border-radius: 5px; margin: 5px;")
+            subscription_info = QLabel("✅ Suscripción Patreon Activa - Sistema IA Completo")
+            subscription_info.setStyleSheet("color: #1a237e; font-weight: bold; background-color: #e8eaf6; padding: 8px; border-radius: 5px; margin: 5px;")
             subscription_info.setAlignment(Qt.AlignCenter)
             layout.addWidget(subscription_info)
-            
+
             # Separador
             layout.addWidget(QLabel(""))
-            
-            # Sección 1: Completado Inteligente
-            completion_group = QGroupBox("🤖 Completado Inteligente con IA")
+
+            # Sección 1: Sistema Pozo Inteligente Principal
+            completion_group = QGroupBox("� Sistema Pozo Inteligente")
             completion_layout = QVBoxLayout(completion_group)
-            
-            completion_desc = QLabel("Usa redes neuronales para completar curvas incompletas dentro del mismo pozo usando correlaciones entre curvas completas e incompletas.")
+
+            completion_desc = QLabel("Sistema de IA avanzado para completado neuronal de curvas. Utiliza redes neuronales y algoritmos híbridos para reconstruir datos faltantes con precisión profesional.")
             completion_desc.setWordWrap(True)
             completion_desc.setStyleSheet("color: #666; font-style: italic; margin: 5px;")
             completion_layout.addWidget(completion_desc)
-            
-            self.neural_completion_btn = QPushButton("🧠 Abrir Completado Neural Intra-Pozo")
+
+            self.neural_completion_btn = QPushButton("🧠 Abrir Sistema Pozo Inteligente")
             self.neural_completion_btn.clicked.connect(self.open_neural_completion)
-            self.neural_completion_btn.setStyleSheet("background-color: #007bff; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
+            self.neural_completion_btn.setStyleSheet("background-color: #3f51b5; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
             completion_layout.addWidget(self.neural_completion_btn)
-            
             layout.addWidget(completion_group)
-            
+
             # Sección 2: Análisis Avanzado
             analysis_group = QGroupBox("🔬 Análisis Litológico Avanzado")
             analysis_layout = QVBoxLayout(analysis_group)
-            
             analysis_desc = QLabel("Clasificación automática de litologías usando machine learning y análisis de patrones multivariable.")
             analysis_desc.setWordWrap(True)
             analysis_desc.setStyleSheet("color: #666; font-style: italic; margin: 5px;")
             analysis_layout.addWidget(analysis_desc)
-            
             self.advanced_lithology_btn = QPushButton("🪨 Análisis Litológico IA")
             self.advanced_lithology_btn.clicked.connect(self.open_advanced_lithology)
             self.advanced_lithology_btn.setStyleSheet("background-color: #28a745; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
             analysis_layout.addWidget(self.advanced_lithology_btn)
-            
             layout.addWidget(analysis_group)
-            
+
             # Sección 3: Interpretación Automática
             interpreter_group = QGroupBox("🧠 Interpretador Automático")
             interpreter_layout = QVBoxLayout(interpreter_group)
-            
+
             interpreter_desc = QLabel("Interpretación automática de registros geofísicos con comentarios técnicos y recomendaciones.")
             interpreter_desc.setWordWrap(True)
             interpreter_desc.setStyleSheet("color: #666; font-style: italic; margin: 5px;")
             interpreter_layout.addWidget(interpreter_desc)
-            
+
             self.ai_interpreter_btn = QPushButton("🗣️ Interpretador IA")
             self.ai_interpreter_btn.clicked.connect(self.open_ai_interpreter)
             self.ai_interpreter_btn.setStyleSheet("background-color: #6f42c1; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
             interpreter_layout.addWidget(self.ai_interpreter_btn)
-            
+
             layout.addWidget(interpreter_group)
-            
+
             # Estado del DLC
             dlc_status = QLabel("📦 DLC Versión: v1.0.0 | Estado: Completamente Funcional")
             dlc_status.setStyleSheet("color: #28a745; font-size: 10px; font-style: italic; text-align: center;")
             dlc_status.setAlignment(Qt.AlignCenter)
             layout.addWidget(dlc_status)
-            
+
         else:
-            # DLC NO PRESENTE: Mostrar invitación/marketing
-            title = QLabel("🌟 Premium IA - ¡Desbloquear Funciones Avanzadas!")
-            title.setFont(QFont("Arial", 16, QFont.Bold))
-            title.setStyleSheet("color: #ff6b35; margin: 10px; text-align: center;")
             title.setAlignment(Qt.AlignCenter)
             layout.addWidget(title)
             
@@ -1367,6 +1374,66 @@ class PyPozoApp(QMainWindow):
         layout.addStretch()
         
         return tab
+
+    def open_advanced_neural_reconstruction(self):
+        """Abrir ventana de Reconstrucción Neuronal Avanzada (Premium) con datos reales."""
+        try:
+            from patreon_dlc.completion.neural_reconstruction_dialog import NeuralReconstructionDialog
+            # Obtener pozo actual
+            well_name = getattr(self, 'current_well_name', None)
+            well = self.wells.get(well_name, None) if hasattr(self, 'wells') else None
+            if well is None:
+                self.show_patreon_invitation()
+                return
+
+            # Seleccionar curva objetivo (por ejemplo, la primera incompleta)
+            df = well.data
+            curve_name = None
+            interval = (0, 0)
+            curves_corr = []
+            # Buscar curva con valores nulos
+            for col in df.columns:
+                nulls = df[col].isnull().sum()
+                if nulls > 0:
+                    curve_name = col
+                    # Calcular intervalo faltante
+                    null_idx = df[col][df[col].isnull()].index
+                    if len(null_idx) > 0:
+                        interval = (float(null_idx[0]), float(null_idx[-1]))
+                    break
+
+            # Calcular correlaciones con otras curvas
+            if curve_name:
+                for col in df.columns:
+                    if col != curve_name:
+                        # Solo usar curvas sin nulos
+                        valid_mask = df[curve_name].notnull() & df[col].notnull()
+                        if valid_mask.sum() > 10:
+                            corr = df[curve_name][valid_mask].corr(df[col][valid_mask])
+                            curves_corr.append((col, corr if corr is not None else 0.0))
+
+            # Si no hay curva incompleta, usar la primera curva
+            if not curve_name:
+                curve_name = df.columns[0]
+                interval = (float(df.index[0]), float(df.index[-1]))
+                for col in df.columns:
+                    if col != curve_name:
+                        corr = df[curve_name].corr(df[col])
+                        curves_corr.append((col, corr if corr is not None else 0.0))
+
+            dialog = NeuralReconstructionDialog(
+                well_name=well_name,
+                curve_name=curve_name,
+                interval=interval,
+                curves=curves_corr,
+                parent=self
+            )
+            dialog.exec_()
+        except ImportError:
+            self.show_patreon_invitation()
+        except Exception as e:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Error", f"No se pudo abrir la Reconstrucción Neuronal Avanzada:\n{e}")
     
     def create_menus(self):
         """Crear menús."""
@@ -1397,9 +1464,46 @@ class PyPozoApp(QMainWindow):
         tools_menu.addAction('⚖️ Comparar Pozos', self.compare_wells)
         tools_menu.addAction('🔗 Fusionar Pozos', self.merge_selected_wells)
         
+        # PozoChat - menú propio
+        chat_menu = menubar.addMenu('💬 PozoChat')
+        if POZOCHAT_AVAILABLE:
+            chat_menu.addAction('Abrir Asistente PozoChat', self.open_pozochat_window)
+        else:
+            chat_menu.addAction('PozoChat no disponible', lambda: self.status_bar.showMessage('PozoChat no disponible.'))
+
         # Ayuda
         help_menu = menubar.addMenu('❓ Ayuda')
         help_menu.addAction('📖 Acerca de', self.show_about)
+
+    def open_pozochat_window(self):
+        """Abrir ventana de PozoChat como asistente aparte."""
+        if not hasattr(self, '_pozochat_window') or self._pozochat_window is None:
+            self._pozochat_window = PozoChatWindow()
+        self._pozochat_window.show()
+        self._pozochat_window.raise_()
+        self._pozochat_window.activateWindow()
+        # Mostrar solo ayuda básica del chat local
+        help_msg = (
+            "<b>💬 PozoChat está listo para conversar y ayudarte en lo que necesites.</b><br><br>"
+            "Puedes saludar, preguntar cómo está, pedir opiniones sobre tus datos, consultar sobre curvas, pedir explicaciones de conceptos, solicitar sugerencias de análisis, o simplemente conversar sobre pozos y registros.<br>"
+            "No requiere conexión a internet ni token. Todas las respuestas son locales, flexibles y adaptadas a tu consulta.<br>"
+            "<br><i>Ejemplos:</i><br>"
+            "- Hola PozoChat, ¿cómo estás?<br>"
+            "- ¿Qué opinas de mis datos?<br>"
+            "- ¿Cómo puedo cargar archivos LAS?<br>"
+            "- ¿Qué curvas básicas debería analizar?<br>"
+            "- Explícame qué significa GR y por qué es importante<br>"
+            "- Sugiere un análisis rápido para mi pozo<br>"
+            "- ¿Qué métodos existen para calcular porosidad?<br>"
+            "- ¿Puedes explicarme cómo interpretar la saturación de agua?<br>"
+            "- ¿Qué recomendaciones tienes para mejorar la calidad de mis registros?<br>"
+            "- ¿Puedes contarme un dato curioso sobre registros de pozos?<br>"
+            "<br><b>¡Pregunta lo que quieras! PozoChat puede opinar, explicar, sugerir y conversar libremente.</b>"
+        )
+        try:
+            self._pozochat_window.show_help_message(help_msg)
+        except Exception:
+            pass
     
     def create_toolbars(self):
         """Crear barras de herramientas."""
@@ -1523,6 +1627,30 @@ class PyPozoApp(QMainWindow):
             ]
         )
     
+    def show_welcome_dialog(self):
+        """Mostrar diálogo de bienvenida con promoción Buy Me a Coffee."""
+        if WELCOME_DIALOG_AVAILABLE:
+            try:
+                # Usar QTimer para mostrar el diálogo después de que la ventana principal esté visible
+                QTimer.singleShot(500, self._show_welcome_delayed)
+            except Exception as e:
+                logger.warning(f"⚠️ Error mostrando diálogo de bienvenida: {e}")
+        else:
+            # Fallback: mostrar mensaje promocional en consola
+            print("=" * 65)
+            print("💡 ¿Te gusta PyPozo? ¡Apoya el desarrollo continuo!")
+            print("☕ Buy me a coffee: https://buymeacoffee.com/ingjoma")
+            print("🙏 Tu apoyo ayuda a mantener PyPozo gratuito y en constante mejora")
+            print("=" * 65)
+    
+    def _show_welcome_delayed(self):
+        """Mostrar el diálogo de bienvenida con un pequeño retraso."""
+        try:
+            show_welcome_dialog(self)
+            logger.info("✅ Diálogo de bienvenida mostrado")
+        except Exception as e:
+            logger.warning(f"⚠️ Error en diálogo de bienvenida retrasado: {e}")
+    
     def closeEvent(self, event):
         """Manejar el cierre de la aplicación correctamente."""
         try:
@@ -1537,13 +1665,10 @@ class PyPozoApp(QMainWindow):
                         logger.warning(f"⚠️ Forzando terminación de thread...")
                         thread.terminate()
                         thread.wait(1000)
-            
             # Limpiar la lista de threads
             self.active_threads.clear()
-            
             logger.info("👋 PyPozo App cerrando correctamente")
             event.accept()
-            
         except Exception as e:
             logger.error(f"❌ Error cerrando aplicación: {e}")
             event.accept()  # Cerrar de todas formas
@@ -5681,12 +5806,12 @@ Sw = (({a} × {rw}) / ({phi_sample:.3f}^{m} × {rt_sample:.1f}))^(1/{n})
     def setup_patreon_menu(self):
         """Configurar menú de funciones Patreon DLC."""
         if self.has_patreon_dlc:
-            # Crear menú experimental
-            experimental_menu = self.menuBar().addMenu('🌟 Experimental')
-            experimental_menu.addAction('🤖 Completar Registros IA', self.open_neural_completion)
-            experimental_menu.addAction('🔬 Análisis Avanzado', self.open_advanced_analysis)
-            experimental_menu.addSeparator()
-            experimental_menu.addAction('ℹ️ Acerca del DLC', self.show_patreon_info)
+            # Crear menú del Pozo Inteligente
+            intelligent_menu = self.menuBar().addMenu('🧠 Pozo Inteligente')
+            intelligent_menu.addAction('� Sistema Pozo Inteligente', self.open_neural_completion)
+            intelligent_menu.addAction('🔬 Análisis Avanzado', self.open_advanced_analysis)
+            intelligent_menu.addSeparator()
+            intelligent_menu.addAction('ℹ️ Acerca del DLC', self.show_patreon_info)
         else:
             # Mostrar menú de invitación - más llamativo
             patreon_menu = self.menuBar().addMenu('💎 Premium ✨')
@@ -5696,26 +5821,87 @@ Sw = (({a} × {rw}) / ({phi_sample:.3f}^{m} × {rt_sample:.1f}))^(1/{n})
             patreon_menu.addAction('📥 Ya soy Patreon - Descargar DLC', self.download_patreon_dlc)
     
     def open_neural_completion(self):
-        """Abrir diálogo de completado neuronal de curvas (DLC)."""
+        """Abrir diálogo del sistema "Pozo Inteligente" - Completado neuronal (DLC)."""
         try:
             if not getattr(self, 'has_patreon_dlc', False) or not hasattr(self, 'patreon_dlc'):
-                QMessageBox.warning(self, "Función Premium", "Esta función requiere el DLC de Patreon.\nDescárgalo e instálalo para acceder a las funciones IA.")
+                QMessageBox.warning(
+                    self, 
+                    "Función Pozo Inteligente", 
+                    "🧠 El sistema 'Pozo Inteligente' requiere el DLC de Patreon.\n"
+                    "Descárgalo e instálalo para acceder a las funciones IA avanzadas."
+                )
                 return
+                
             if not self.wells or len(self.wells) == 0:
-                QMessageBox.warning(self, "Advertencia", "Se requiere al menos 1 pozo para el completado neuronal.")
+                QMessageBox.warning(
+                    self, 
+                    "Pozo Inteligente - Advertencia", 
+                    "🔍 Se requiere al menos 1 pozo para el sistema 'Pozo Inteligente'.\n"
+                    "Carga un pozo desde el menú Archivo → Cargar Pozo."
+                )
                 return
-            create_completion_dialog = getattr(self.patreon_dlc, 'create_completion_dialog', None)
-            if create_completion_dialog is None:
-                QMessageBox.critical(self, "Error", "No se encontró la función 'create_completion_dialog' en el DLC.")
+            
+            # Extraer objetos Well del diccionario de WellManager
+            well_objects = []
+            for well_name, well_manager in self.wells.items():
+                # El well_manager ES el WellManager, pero necesitamos el objeto welly.Well real
+                if hasattr(well_manager, 'well') and well_manager.well is not None:
+                    # Este es el objeto welly.Well real que necesitamos
+                    well_objects.append(well_manager.well)
+                else:
+                    # Como fallback, podemos usar el WellManager directamente
+                    # pero necesitamos asegurar que tenga los datos correctos
+                    well_objects.append(well_manager)
+            
+            if not well_objects:
+                QMessageBox.warning(
+                    self, 
+                    "Pozo Inteligente - Advertencia", 
+                    "🔍 No se encontraron pozos válidos con datos para el sistema IA.\n"
+                    "Verifica que los pozos estén cargados correctamente."
+                )
                 return
-            dialog = create_completion_dialog(self.wells, self)
-            result = dialog.exec_()
-            if result == QDialog.Accepted:
-                self.log_activity("🤖 Completado neuronal ejecutado exitosamente")
-                if self.current_well:
-                    self.update_curves_list()
+            
+            # Intentar usar la nueva función del Pozo Inteligente
+            show_completion_dialog = getattr(self.patreon_dlc, 'show_completion_dialog', None)
+            if show_completion_dialog:
+                # Usar la nueva función directa con objetos Well reales
+                result = show_completion_dialog(well_objects, self)
+                if result:
+                    self.log_activity("🧠 Sistema 'Pozo Inteligente' ejecutado exitosamente")
+                    if self.current_well:
+                        self.update_curves_list()
+                        self.status_bar.showMessage("✅ Completado inteligente aplicado", 3000)
+            else:
+                # Fallback a la función legacy
+                create_completion_dialog = getattr(self.patreon_dlc, 'create_completion_dialog', None)
+                if create_completion_dialog is None:
+                    QMessageBox.critical(
+                        self, 
+                        "Error Pozo Inteligente", 
+                        "❌ No se encontró el sistema 'Pozo Inteligente' en el DLC.\n"
+                        "Verifica que tengas la versión más reciente del DLC."
+                    )
+                    return
+                
+                dialog = create_completion_dialog(well_objects, self)
+                result = dialog.exec_()
+                if result == QDialog.Accepted:
+                    self.log_activity("� Sistema 'Pozo Inteligente' ejecutado exitosamente")
+                    if self.current_well:
+                        self.update_curves_list()
+                        self.status_bar.showMessage("✅ Completado inteligente aplicado", 3000)
+                        
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error abriendo completado neuronal:\n{str(e)}")
+            error_msg = f"Error abriendo sistema 'Pozo Inteligente':\n{str(e)}"
+            # Usar logging estándar si no hay logger
+            if hasattr(self, 'logger'):
+                self.logger.error(error_msg)
+            else:
+                import logging
+                logging.error(error_msg)
+            QMessageBox.critical(self, "Error Pozo Inteligente", f"❌ {error_msg}")
+            self.status_bar.showMessage("❌ Error en Pozo Inteligente", 5000)
     
     def open_advanced_analysis(self):
         """Abrir análisis avanzado."""
