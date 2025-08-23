@@ -1,0 +1,24 @@
+# PyPozo Dependencies
+numpy>=1.20.0
+pandas>=1.3.0
+matplotlib>=3.5.0
+seaborn>=0.11.0
+scipy>=1.7.0
+welly>=0.5.2
+lasio>=0.30
+openpyxl>=3.0.0
+PyQt5>=5.15.0
+
+# Conditional dependencies for non-Windows systems
+geopandas>=0.10.0; platform_system!='Windows'
+shapely>=1.8.0; platform_system!='Windows'
+
+# Development dependencies
+pytest>=7.0.0
+black>=22.0.0
+flake8>=4.0.0
+isort>=5.0.0
+
+# Documentation dependencies
+sphinx>=4.0.0
+sphinx-rtd-theme>=1.0.0
