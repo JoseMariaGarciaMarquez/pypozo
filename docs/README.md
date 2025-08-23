@@ -1,32 +1,49 @@
-# 📖 Centro de Documentación - PyPozo 2.0
+# � Documentación PyPozo
 
-<div align="center">
-  <img src="../images/logo_completo.png" alt="PyPozo - Sistema Profesional de Análisis de Pozos" width="450"/>
-  
-  **Centro de Documentación Completo**
-</div>
+Centro de documentación completo para PyPozo - Software profesional de análisis de pozos petroleros.
 
-Bienvenido al centro de documentación completo de PyPozo. Aquí encontrarás toda la información necesaria para usar tanto la aplicación GUI como la librería de programación.
+## 🎯 Inicio Rápido
+
+### Para Usuarios Nuevos
+- **[Guía Rápida](GUIA_RAPIDA.md)** - Inicio en 5 minutos
+- **[Manual de Usuario](MANUAL_USUARIO.md)** - Tutorial completo paso a paso
+
+### Para Desarrolladores  
+- **[API Reference](API_REFERENCE.md)** - Documentación técnica completa
+- **[Guía de Desarrollo](DEVELOPMENT.md)** - Configuración del entorno de desarrollo
+- **[Contribuir](CONTRIBUTING.md)** - Cómo contribuir al proyecto
+
+## 📖 Documentación Completa
+
+### Manuales de Usuario
+- **[Manual de Usuario](MANUAL_USUARIO.md)** - Guía completa de la aplicación GUI
+- **[Guía Rápida](GUIA_RAPIDA.md)** - Tutorial de 5 minutos para empezar
+
+### Documentación Técnica
+- **[API Reference](API_REFERENCE.md)** - Documentación completa de la API
+- **[Desarrollo](DEVELOPMENT.md)** - Guía para desarrolladores
+- **[Arquitectura](SETUP_COMPLETE.md)** - Documentación de la arquitectura del sistema
+
+### Guías Específicas
+- **[Mejoras Geológicas](IMPLEMENTACION_MEJORAS_GEOLOGICAS_COMPLETA.md)** - Análisis petrofísico avanzado  
+- **[Sistema Pozo Inteligente](IMPLEMENTACION_SISTEMA_POZO_INTELIGENTE.md)** - Funciones de IA
+- **[Mejoras Neural](MEJORAS_NEURAL_COMPLETION.md)** - Machine Learning aplicado
+
+### Comunidad y Soporte
+- **[Soporte](SUPPORT_PYPOZO.md)** - Formas de apoyar el proyecto
+- **[Contribuidores](CONTRIBUTORS.md)** - Reconocimientos a colaboradores
+- **[Código de Conducta](CODE_OF_CONDUCT.md)** - Normas de la comunidad
+- **[Seguridad](SECURITY.md)** - Políticas de seguridad
+
+## 🚀 Enlaces Rápidos
+
+- [Repositorio GitHub](https://github.com/JoseMariaGarciaMarquez/pypozo)
+- [Reportar Issues](https://github.com/JoseMariaGarciaMarquez/pypozo/issues)
+- [Buy Me a Coffee](https://buymeacoffee.com/ingjoma) ☕
 
 ---
 
-## 🎯 ¿Por Dónde Empezar?
-
-### 🚀 **Para Usuarios Nuevos**
-**Empieza aquí si es tu primera vez con PyPozo**
-
-1. **[📋 Guía Rápida](GUIA_RAPIDA.md)** *(5 minutos)*
-   - Instalación rápida
-   - Primer análisis de pozo
-   - Comandos esenciales
-
-2. **[📚 Manual de Usuario](MANUAL_USUARIO.md)** *(lectura completa)*
-   - Tutorial completo de la aplicación GUI
-   - Uso de la librería Python
-   - Ejemplos paso a paso
-
-### 🔧 **Para Desarrolladores**
-**Si quieres programar con PyPozo**
+**¿Necesitas ayuda?** Consulta primero la [Guía Rápida](GUIA_RAPIDA.md) o el [Manual de Usuario](MANUAL_USUARIO.md).
 
 1. **[🛠️ API Reference](API_REFERENCE.md)**
    - Documentación técnica completa
