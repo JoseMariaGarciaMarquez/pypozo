@@ -7,11 +7,12 @@
   
   [![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-  [![Status](https://img.shields.io/badge/Status-Educativo-brightgreen.svg)]()
+  [![Status](https://img.shields.io/badge/Status-Educativo-brightgreen.svg)](https://github.com/JoseMariaGarciaMarquez/pypozo)
   
   ---
   
-  ### ☕ ¿Te ayudó con tu tesis o proyecto? 
+## ☕ ¿Te ayudó con tu tesis o proyecto?
+
   [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/ingjoma)
   
 </div>
@@ -135,7 +136,7 @@ python pypozo_app.py
 1. **Fusiona múltiples pozos** del mismo campo
 2. **Compara propiedades** entre pozos
 3. **Identifica tendencias regionales**
-4. **Crea mapas de propiedades** 
+4. **Crea mapas de propiedades**
 5. **Pregunta clave**: ¿Cómo varía la calidad del reservorio espacialmente?
 
 ## 📊 Datos Incluidos para Practicar
@@ -151,16 +152,19 @@ El proyecto incluye pozos reales colombianos para que practiques:
 ### 🆘 Problemas Comunes y Soluciones
 
 **"No puedo instalar PyPozo"**
+
 - Asegúrate de tener Python 3.8 o superior
 - Usa Anaconda (es más fácil para estudiantes)
 - Revisa la [Guía de Instalación Detallada](docs/GUIA_RAPIDA.md)
 
 **"Los gráficos se ven raros"**
+
 - Verifica que el archivo LAS esté completo
 - Usa los datos de ejemplo primero
 - Consulta el [Manual de Usuario](docs/MANUAL_USUARIO.md)
 
 **"No entiendo los cálculos"**
+
 - Lee la [documentación técnica](docs/API_REFERENCE.md)
 - El código es abierto: puedes ver exactamente qué hace cada función
 - Pregunta en los Issues de GitHub
@@ -181,18 +185,21 @@ El proyecto incluye pozos reales colombianos para que practiques:
 ## 🎯 Roadmap Estudiantil
 
 ### ✅ Ya Disponible
+
 - Interfaz gráfica súper fácil de usar
 - Cálculos básicos de petrofísica (VCL, Porosidad)
 - Datos reales para practicar
 - Documentación en español
 
 ### 🚧 En Desarrollo (¡Puedes contribuir!)
+
 - Más métodos de cálculo de saturación de agua
 - Tutorials en video paso a paso
 - Ejercicios guiados por materia
 - Integración con Jupyter para clases
 
 ### 🎓 Ideas para tu Tesis
+
 - Machine Learning aplicado a registros de pozo
 - Caracterización de yacimientos no convencionales
 - Análisis de incertidumbre en cálculos petrofísicos
